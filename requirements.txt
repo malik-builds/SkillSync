@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+beanie
+motor
+python-dotenv
+pypdf
+python-docx
+google-genai
+tree-sitter
+tree-sitter-python
+openai
+langgraph
+PyGithub
+
+
+
+

@@ -1,0 +1,31 @@
+# Ignore editor/IDE-specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+__pycache__/
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore build artifacts and temporary files
+/build/
+/dist/
+/target/
+*.log
+*.tmp
+*.cache
+*.class
+
+# Ignore dependencies directory (if applicable, though package managers handle this)
+/node_modules/
+/vendor/
+/venv/
+
+# Ignore sensitive files (e.g., environment variables)
+.env
+config.local.json
+LEARNING.md
+TROUBLESHOOTING.md
+*.resolved
