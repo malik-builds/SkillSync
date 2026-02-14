@@ -37,11 +37,11 @@ async def analyze_student_endpoint(file: UploadFile = File(...), github_url: str
     if not content:
         raise HTTPException(status_code=400, detail="File is empty")
 
-    # Step 1: Extract Text (Keeping this as a helper for now)
+    # Step 1: Extract Text (Standard)
     raw_text = services.extract_text(content, file.filename)
     
     if not raw_text:
-        raise HTTPException(status_code=400, detail="Could not extract text.")
+        raise HTTPException(status_code=400, detail="Could not extract text from the provided file.")
 
     # Step 2: LangGraph Orchestration
     initial_state = {

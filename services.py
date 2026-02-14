@@ -4,7 +4,7 @@ import os
 import json
 import io
 import re
-from pypdf import PdfReader
+import pdfplumber
 from docx import Document
 from tree_sitter import Language, Parser
 import tree_sitter_python as tspython
@@ -41,8 +41,15 @@ class ResumeParserTool:
             "professional_experience": [{"role": "string", "company": "string", "duration": "string", "key_tasks": ["string"]}],
             "project_experience": [{"title": "string", "technologies_used": ["string"], "description": "string"}],
             "skills": ["string"],
-            "education": [{"institution": "string", "degree": "string", "year": "string"}]
+            "education": [{"institution": "string", "degree": "string", "year": "string"}],
+            "ats_feedback": {
+                "score_estimate": "string (e.g. High/Medium/Low)",
+                "critical_issues": ["string"],
+                "optimization_tips": ["string"]
+            }
         }
+
+        Analyze the parsed text for ATS compatibility. If the resume uses multiple columns, complex tables, or non-standard headers, provide 3 specific, actionable tips in 'optimization_tips'.
         """
         
         # Limit text size for token efficiency
@@ -207,35 +214,53 @@ class GitHubAuditorTool:
             return {"error": str(e), "status": "failed"}
 
 def extract_text(file_bytes: bytes, filename: str) -> str:
-    """Detects file type and extracts raw text."""
+    """Detects file type and extracts raw text using pdfplumber for layout awareness."""
     filename = filename.lower()
     text = ""
+    file_size_kb = len(file_bytes) / 1024
+    
+    print(f"--- INFO: Starting extraction for {filename} ({file_size_kb:.2f} KB) ---")
     
     try:
         # Stream the bytes into a file-like object
         file_stream = io.BytesIO(file_bytes)
 
         if filename.endswith(".pdf"):
-            reader = PdfReader(file_stream)
-            for page in reader.pages:
-                text += (page.extract_text() or "") + "\n"
+            with pdfplumber.open(file_stream) as pdf:
+                print(f"--- INFO: PDF detected with {len(pdf.pages)} pages ---")
+                for page in pdf.pages:
+                    # layout=True preserves the horizontal relationship of text blocks (reading order)
+                    page_text = page.extract_text(layout=True) or ""
+                    text += page_text + "\n"
+            
+            if not text.strip():
+                print(f"--- WARNING: No text extracted. Might be a scanned PDF or empty. ---")
                 
         elif filename.endswith(".docx"):
             doc = Document(file_stream)
+            print(f"--- INFO: DOCX detected ---")
             for para in doc.paragraphs:
                 text += para.text + "\n"
                 
         elif filename.endswith(".txt"):
+            print(f"--- INFO: TXT detected ---")
             text = file_bytes.decode("utf-8")
             
         else:
-            raise ValueError("Unsupported file format")
+            print(f"--- ERROR: Unsupported file format: {filename} ---")
+            raise ValueError(f"Unsupported file format: {filename}")
             
     except Exception as e:
-        print(f"Error reading file {filename}: {e}")
+        print(f"--- EXCEPTION: Error reading file {filename}: {e} ---")
         return ""
 
-    return text.strip()
+    final_text = text.strip()
+    if not final_text:
+        print(f"--- WARNING: Extraction resulted in empty string for {filename} ---")
+    else:
+        print(f"--- SUCCESS: Extracted {len(final_text)} characters ---")
+
+    return final_text
 
 import market_data
 
