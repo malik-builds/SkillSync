@@ -96,71 +96,95 @@ class GitHubAuditorTool:
         return ""
 
     async def audit_repo(self, github_url: str) -> dict:
-        """Fetches repo data and uses AI to audit code quality."""
+        """Fetches all repositories for the user and performs an aggregate portfolio audit."""
         repo_path = self._extract_repo_path(github_url)
         if not repo_path:
-            return {"error": "Invalid GitHub URL. Please provide github.com/owner/repo or github.com/owner"}
+            return {"error": "Invalid GitHub URL."}
 
         try:
-            # Handle Profile Links (e.g., "malik-builds")
-            if "/" not in repo_path:
-                user = self.gh.get_user(repo_path)
-                repos = user.get_repos(sort="updated", direction="desc")
-                if repos.totalCount == 0:
-                    return {"error": f"No public repositories found for user {repo_path}"}
-                repo = repos[0]
-                repo_path = repo.full_name
-                print(f"--- INFO: Profile link detected. Auditing most recent repo: {repo_path} ---")
-            else:
-                repo = self.gh.get_repo(repo_path)
+            # Step 1: Identify the User
+            username = repo_path.split("/")[0]
+            user = self.gh.get_user(username)
+            repos = list(user.get_repos(sort="updated", direction="desc"))
             
-            # Fetch Repo Summary
-            summary_info = {
-                "full_name": repo.full_name,
-                "description": repo.description,
-                "topics": repo.get_topics(),
-                "languages": repo.get_languages(),
-                "stars": repo.stargazers_count,
-            }
+            if not repos:
+                return {"error": f"No public repositories found for user {username}"}
 
-            # Fetch README
+            # Step 2: Aggregate Portfolio Stats
+            total_stars = 0
+            total_forks = 0
+            languages_agg = {}
+            repo_summaries = []
+
+            for r in repos:
+                total_stars += r.stargazers_count
+                total_forks += r.forks_count
+                
+                # Language Distribution
+                try:
+                    repo_langs = r.get_languages()
+                    for lang, bytes_count in repo_langs.items():
+                        languages_agg[lang] = languages_agg.get(lang, 0) + bytes_count
+                except: pass
+
+                repo_summaries.append({
+                    "name": r.name,
+                    "stars": r.stargazers_count,
+                    "language": r.language,
+                    "description": r.description,
+                    "updated_at": r.updated_at.isoformat()
+                })
+
+            # Calculate Language percentages
+            total_bytes = sum(languages_agg.values())
+            lang_stats = {l: round((c / total_bytes) * 100, 1) for l, c in languages_agg.items()} if total_bytes > 0 else {}
+
+            # Step 3: Deep Audit the "Top" Repo (or specific repo if provided in URL)
+            target_repo = None
+            if "/" in repo_path: # Specific repo requested
+                target_repo = self.gh.get_repo(repo_path)
+            else: # Fallback to most starred
+                target_repo = sorted(repos, key=lambda x: x.stargazers_count, reverse=True)[0]
+
             readme_content = ""
             try:
-                readme = repo.get_readme()
-                readme_content = readme.decoded_content.decode("utf-8")[:3000] # Limit size
+                readme = target_repo.get_readme()
+                readme_content = readme.decoded_content.decode("utf-8")[:2000]
             except:
                 readme_content = "No README found."
 
-            # Fetch File Structure (Top level)
-            contents = repo.get_contents("")
-            file_list = [c.name for c in contents][:20]
-
-            # AI Audit Prompt
+            # Step 4: Multi-Repo AI Audit
             system_audit_prompt = """
-            You are a Senior Technical Auditor. Analyze the provided GitHub repository metadata and README.
-            Evaluate the student's project based on:
-            1. Technical Complexity (High/Medium/Low)
-            2. Best Practices (Design patterns, documentation)
-            3. Project Uniqueness
-            4. Potential learning gaps
+            You are a Senior Technical Portfolio Auditor. Combine the aggregate stats and the deep dive of the featured project.
+            Provide a holistic evaluation of the student's engineering profile.
+            Focus on:
+            1. Breadth of skills (from languages_agg)
+            2. Depth in specific frameworks (from README/projects)
+            3. Project Uniqueness and consistency
+            4. Learning path recommendations
 
             Return a structured JSON report.
             """
             
-            audit_payload = f"""
-            Repo Path: {repo_path}
-            Summary: {json.dumps(summary_info)}
-            Files: {file_list}
-            README Snippet:
-            {readme_content}
-            """
+            audit_payload = {
+                "portfolio_stats": {
+                    "total_repos": len(repos),
+                    "total_stars": total_stars,
+                    "language_distribution": lang_stats
+                },
+                "featured_project": {
+                    "name": target_repo.full_name,
+                    "readme_snippet": readme_content,
+                    "top_files": [c.name for c in target_repo.get_contents("")][:10]
+                },
+                "all_projects_overview": repo_summaries[:10] # Top 10 recent
+            }
 
-            # Call AI for qualitative audit
             response = self.ai_client.chat.completions.create(
                 model=self.model_id,
                 messages=[
                     {"role": "system", "content": system_audit_prompt},
-                    {"role": "user", "content": audit_payload}
+                    {"role": "user", "content": json.dumps(audit_payload)}
                 ],
                 response_format={"type": "json_object"}
             )
@@ -168,13 +192,18 @@ class GitHubAuditorTool:
             ai_report = json.loads(response.choices[0].message.content)
             
             return {
-                "repo_info": summary_info,
-                "ai_audit": ai_report,
+                "aggregate_stats": {
+                    "total_repos": len(repos),
+                    "total_stars": total_stars,
+                    "languages": lang_stats
+                },
+                "ai_portfolio_audit": ai_report,
+                "featured_repo": target_repo.full_name,
                 "status": "completed"
             }
 
         except Exception as e:
-            print(f"Error auditing GitHub repo: {e}")
+            print(f"Error in multi-repo audit: {e}")
             return {"error": str(e), "status": "failed"}
 
 def extract_text(file_bytes: bytes, filename: str) -> str:
