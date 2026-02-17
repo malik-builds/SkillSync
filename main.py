@@ -30,7 +30,11 @@ import graph
 # ... other imports ...
 
 @app.post("/analyze", response_model=dict)
-async def analyze_student_endpoint(file: UploadFile = File(...), github_url: str = Query(None)):
+async def analyze_student_endpoint(
+    file: UploadFile = File(...), 
+    github_url: str = Query(None),
+    target_job_title: str = Query("Fullstack Developer")
+):
     # Read the file
     content = await file.read()
     
@@ -47,7 +51,9 @@ async def analyze_student_endpoint(file: UploadFile = File(...), github_url: str
     initial_state = {
         "raw_text": raw_text,
         "github_url": github_url,
+        "target_job_title": target_job_title,
         "extracted_data": {},
+        "market_requirements": {},
         "github_report": None,
         "gap_report": {},
         "status": "pending"
@@ -59,6 +65,7 @@ async def analyze_student_endpoint(file: UploadFile = File(...), github_url: str
     # We return the items from the final state
     return {
         "extracted_data": final_state.get("extracted_data"),
+        "market_requirements": final_state.get("market_requirements"),
         "gap_report": final_state.get("gap_report"),
         "github_report": final_state.get("github_report"),
         "status": final_state.get("status")

@@ -31,16 +31,37 @@ class ResumeAnalysis(BaseModel):
     missing_skills: List[str]
 
 
+# Nested Models for Rich Analysis (Phase 12)
+class WorkExperience(BaseModel):
+    role: str
+    company: str
+    duration: str
+    key_tasks: List[str]
+
+class SkillSet(BaseModel):
+    category: str
+    skills: List[str]
+
+class ATSFeedback(BaseModel):
+    score_estimate: str
+    critical_issues: List[str]
+    optimization_tips: List[str]
+
 class Student(Document):
     name: str
     email: EmailStr
     course: str
-    skills: List[str] = []
+    skills: List[str] = [] # Flattened for quick search
     github_url: Optional[str] = None
-    extracted_data: Optional[dict] = Field(default_factory=dict) # Structured JSON from ResumeParser
-    ai_insights: Optional[dict] = Field(default_factory=dict) # Analysis notes, code quality, etc.
-    career_roadmap: Optional[dict] = Field(default_factory=dict) # Gap analysis and learning path
-    created_at: str = Field(default_factory=lambda: "2026-02-12T15:13:50+05:30") # Placeholder for actual timestamp logic
+    
+    # Nested Data Structures
+    extracted_data: Optional[dict] = Field(default_factory=dict) 
+    # ^ Will follow a structure like:
+    # { "work": List[WorkExperience], "skills": List[SkillSet], "ats": ATSFeedback }
+    
+    ai_insights: Optional[dict] = Field(default_factory=dict) 
+    career_roadmap: Optional[dict] = Field(default_factory=dict) 
+    created_at: str = Field(default_factory=lambda: "2026-02-14T20:56:00+05:30")
 
     class Settings:
         name = "students"

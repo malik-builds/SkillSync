@@ -29,3 +29,5 @@ config.local.json
 LEARNING.md
 TROUBLESHOOTING.md
 *.resolved
+ISSUE_LOG.md
+DECISIONS.md    
