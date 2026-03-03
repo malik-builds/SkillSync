@@ -221,14 +221,29 @@ class GitHubAuditorTool:
             print(f"Error in multi-repo audit: {e}")
             return {"error": str(e), "status": "failed"}
 
-# Phase 20: Master Architectural Override (Bias-Free Meritocracy)
+# Phase 21: Tiered Skill Ceilings (Pristine Depth Cap)
 SKILL_ONTOLOGY = {
     "Object Oriented Programming": ["Java", "C++", "C#", "Python", "OOP"],
     "Frontend Frameworks": ["React", "Next.js", "Angular", "Vue", "Tailwind", "Bootstrap"],
     "Backend Systems": ["Node.js", "Express", "Laravel", "Django", "Spring Boot", "PHP", "FastAPI"],
     "Database Management": ["SQL", "MySQL", "PostgreSQL", "MongoDB", "SQLite", "NoSQL", "Redis"],
     "Version Control": ["Git", "GitHub", "Bitbucket", "GitLab"],
-    "Software Lifecycle": ["Agile", "Scrum", "Jira", "CI/CD", "Trello"]
+    "Software Lifecycle": ["Agile", "Scrum", "Jira", "CI/CD", "Trello", "DevOps"],
+    "Cloud & Infrastructure": ["AWS", "Azure", "GCP", "Docker", "Kubernetes", "Terraform"],
+    "Artificial Intelligence": ["Machine Learning", "TensorFlow", "PyTorch", "NLP", "LLM", "Deep Learning"],
+    "Mobile Development": ["React Native", "Flutter", "Swift", "Kotlin", "iOS", "Android"]
+}
+
+CATEGORY_TIERS = {
+    "Frontend Frameworks": 1,
+    "Database Management": 1,
+    "Object Oriented Programming": 2,
+    "Backend Systems": 2,
+    "Version Control": 2,
+    "Software Lifecycle": 3,
+    "Cloud & Infrastructure": 3,
+    "Artificial Intelligence": 3,
+    "Mobile Development": 3
 }
 
 def extract_text(file_bytes: bytes, filename: str) -> str:
@@ -355,6 +370,7 @@ class GapAnalysisTool:
         # 2. PILLAR 2: TECHNICAL DEPTH (40 Pts)
         tech_points = 0
         matched_categories = set()
+        has_pristine = False
         
         for category, skills in SKILL_ONTOLOGY.items():
             category_match = False
@@ -366,8 +382,17 @@ class GapAnalysisTool:
             
             if category_match:
                 matched_categories.add(category)
+                tier = CATEGORY_TIERS.get(category, 1)
+                
+                if tier == 1:
+                    tech_points += 5
+                elif tier == 2:
+                    tech_points += 8
+                elif tier == 3:
+                    tech_points += 10
+                    has_pristine = True
 
-        tech_points = min(len(matched_categories) * 8, 40)
+        tech_points = min(tech_points, 40)
         
         # 3. PILLAR 3: DEGREE RELEVANCE (20 Pts)
         edu_points = 0
@@ -381,6 +406,7 @@ class GapAnalysisTool:
 
         return {
             "score": total_score,
+            "has_pristine": has_pristine,
             "breakdown": {
                 "github": gh_points,
                 "technical": tech_points,
@@ -439,6 +465,7 @@ class GapAnalysisTool:
 
         return {
             "score": result["score"],
+            "has_pristine": result["has_pristine"],
             "breakdown": result["breakdown"],
             "verified_evidence": result["evidence"],
             "missing_critical": missing_critical_skills,

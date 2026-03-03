@@ -94,6 +94,12 @@ async def analyze_gap_node(state: StudentState):
     tech_score = gap_report.get("breakdown", {}).get("technical", 0)
 
     final_score = github_score + edu_score + tech_score
+    
+    # Phase 21: Skill Ceiling Soft-Cap
+    has_pristine = gap_report.get("has_pristine", False)
+    if not has_pristine and repos < 30 and final_score > 95:
+        final_score = 95
+        
     if final_score > 100: final_score = 100
     
     # Update the report before returning

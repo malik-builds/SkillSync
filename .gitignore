@@ -26,8 +26,9 @@ Thumbs.db
 # Ignore sensitive files (e.g., environment variables)
 .env
 config.local.json
-LEARNING.md
-TROUBLESHOOTING.md
-*.resolved
-ISSUE_LOG.md
-DECISIONS.md    
+# Ignore all Markdown files
+*.md
+
+# Except README
+!README.md
+!readme.md
