@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from datetime import datetime
+from models import Student
 from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -31,6 +33,17 @@ async def signup(request: SignupRequest):
         role=request.role
     )
     await user.insert()
+    
+    # Auto-create a linked Student profile if the user is a student
+    if request.role == "student":
+        student = Student(
+            name=request.email.split("@")[0],  # Default name placeholder
+            email=request.email,
+            course="Pending Update",
+            skills=[],
+            created_at=datetime.utcnow().isoformat()
+        )
+        await student.insert()
     
     return UserResponse(
         id=str(user.id),

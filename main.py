@@ -139,7 +139,33 @@ async def analyze_student_endpoint(
     
     final_state = await graph.app.ainvoke(initial_state)
 
-    # Save to Database (Optional: Update if needed)
+    # Save to Database
+    if current_user.role == "student":
+        student = await models.Student.find_one(models.Student.email == current_user.email)
+        if student:
+            extracted = final_state.get("extracted_data", {})
+            
+            # Update core attributes
+            student.skills = extracted.get("skills", [])
+            student.github_url = github_url or extracted.get("contact_info", {}).get("github", student.github_url)
+            
+            # Update name if default
+            parsed_name = extracted.get("name")
+            if parsed_name and student.name == current_user.email.split("@")[0]:
+                student.name = parsed_name
+                
+            # Update course from education history
+            edu = extracted.get("education_history", [])
+            if edu and len(edu) > 0 and isinstance(edu[0], dict):
+                student.course = edu[0].get("degree", student.course)
+                
+            # Attach rich JSON payloads
+            student.extracted_data = extracted
+            student.ai_insights = final_state.get("gap_report", {})
+            student.career_roadmap = final_state.get("market_requirements", {})
+            
+            await student.save()
+
     # We return the items from the final state
     return {
         "extracted_data": final_state.get("extracted_data"),
