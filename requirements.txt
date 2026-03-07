@@ -15,3 +15,8 @@ PyGithub
 
 
 
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+python-magic
+slowapi

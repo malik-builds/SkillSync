@@ -78,8 +78,8 @@ class ResumeParserTool:
             content = response.choices[0].message.content
             return json.loads(content)
         except Exception as e:
-            print(f"Error calling DeepSeek: {e}")
-            return {"error": "Failed to parse resume", "details": str(e)}
+            print(f"[INTERNAL ERROR] ResumeParserTool.parse(): {e}")
+            return {"error": "Resume parsing failed. Please try again."}
 
 class GitHubAuditorTool:
     def __init__(self):
@@ -218,8 +218,8 @@ class GitHubAuditorTool:
             }
 
         except Exception as e:
-            print(f"Error in multi-repo audit: {e}")
-            return {"error": str(e), "status": "failed"}
+            print(f"[INTERNAL ERROR] GitHubAuditorTool.audit_repo(): {e}")
+            return {"error": "GitHub audit failed. Please try again.", "status": "failed"}
 
 # Phase 21: Tiered Skill Ceilings (Pristine Depth Cap)
 SKILL_ONTOLOGY = {
@@ -295,7 +295,7 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
             raise ValueError(f"Unsupported file format: {filename}")
             
     except Exception as e:
-        print(f"--- EXCEPTION: Extraction failed: {e} ---")
+        print(f"[INTERNAL ERROR] extract_text(): {e}")
         return ""
 
     return text.strip()
@@ -332,7 +332,7 @@ class MarketResearcherTool:
             )
             return json.loads(response.choices[0].message.content)
         except Exception as e:
-            print(f"Market Research failed: {e}")
+            print(f"[INTERNAL ERROR] MarketResearcherTool.research(): {e}")
             # Fallback to generic fullstack skills if AI fails
             return {
                 "must_have": ["Python", "JavaScript", "SQL"],

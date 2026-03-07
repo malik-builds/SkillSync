@@ -1,5 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from .models import User
 from .schemas import SignupRequest, TokenResponse, UserResponse
 from .utils import hash_password, verify_password, create_access_token
@@ -35,7 +39,8 @@ async def signup(request: SignupRequest):
     )
 
 @router.post("/login", response_model=TokenResponse)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("5/minute")
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     """
     Authenticates a user via OAuth2 form data (username, password).
     Returns a stateless JWT access token upon successful verification.

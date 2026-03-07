@@ -5,24 +5,71 @@ load_dotenv() # Load env vars BEFORE other imports
 from contextlib import asynccontextmanager;
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
-from fastapi import FastAPI, UploadFile, File, HTTPException, status, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, status, Query, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+import magic
 from typing import List
 import models
 import services
 import database
+import config
+
+from auth.router import router as auth_router
+from auth.dependencies import get_current_user
+from auth.models import User
+from jobs.router import router as jobs_router
 
 
 # DB CONNECTION
 
+# Rate Limiting Setup
+limiter = Limiter(key_func=get_remote_address)
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        return response
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Validate environment variables on startup
+    config.validate_env()
     # Initialize Beanie
     client = await database.init_db()
     yield
     client.close()
 
-
 app = FastAPI(lifespan=lifespan)
+
+# Add Security Middlewares
+app.add_middleware(SecurityHeadersMiddleware)
+
+# TODO: Before production, replace * with your actual 
+# frontend domain e.g. ["https://skillsync.vercel.app"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# Include Auth Router
+app.include_router(auth_router, prefix="/auth", tags=["Auth"])
+
+# Include Jobs Router
+app.include_router(jobs_router, prefix="/jobs", tags=["Jobs"])
 
 # --- 1. STUDENT ANALYSIS ROUTE ---
 import graph
@@ -30,10 +77,13 @@ import graph
 # ... other imports ...
 
 @app.post("/analyze", response_model=dict)
+@limiter.limit("10/minute")
 async def analyze_student_endpoint(
+    request: Request,
     file: UploadFile = File(...), 
     github_url: str = Query(None),
-    target_job_title: str = Query("Fullstack Developer")
+    target_job_title: str = Query("Fullstack Developer"),
+    current_user: User = Depends(get_current_user)
 ):
     # Read the file
     content = await file.read()
@@ -41,8 +91,36 @@ async def analyze_student_endpoint(
     if not content:
         raise HTTPException(status_code=400, detail="File is empty")
 
+    # FIX 1: FILE UPLOAD VALIDATION
+    ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+    # Size check
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="File too large. Maximum size is 5MB")
+    
+    # Extension check
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=415, detail="Unsupported file type. Allowed: PDF, DOCX, TXT")
+    
+    # Magic bytes check
+    mime = magic.from_buffer(content, mime=True)
+    if ext == ".pdf" and mime != "application/pdf":
+        raise HTTPException(status_code=415, detail="File content does not match file extension")
+    elif ext == ".docx" and not mime.startswith("application/"):
+        raise HTTPException(status_code=415, detail="File content does not match file extension")
+    elif ext == ".txt" and not mime.startswith("text/"):
+        raise HTTPException(status_code=415, detail="File content does not match file extension")
+
+    # Filename sanitisation
+    basename = os.path.basename(file.filename)
+    sanitised_name = "".join([c if c.isalnum() or c in (".", "-") else "_" for c in basename])
+    if len(sanitised_name) > 100:
+        sanitised_name = sanitised_name[-100:]
+
     # Step 1: Extract Text (Standard)
-    raw_text = services.extract_text(content, file.filename)
+    raw_text = services.extract_text(content, sanitised_name)
     
     if not raw_text:
         raise HTTPException(status_code=400, detail="Could not extract text from the provided file.")
