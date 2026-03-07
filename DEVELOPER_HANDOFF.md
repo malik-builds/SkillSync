@@ -1,58 +1,74 @@
 # SkillSync Developer Handoff Documentation
 
-Welcome to the **SkillSync Backend Repository**. This document serves as the master guide to the architectural decisions, pipeline mechanics, and AI strategies implemented from Phase 1 to Phase 24. It is designed to get new developers up to speed instantly.
+Welcome to the **SkillSync Backend Repository**. This document serves as the master guide to the architectural decisions, pipeline mechanics, and AI strategies implemented from Phase 1 to Phase 24.
 
 ---
 
-## 1. Core Architecture & Tech Stack
-- **Framework:** FastAPI (Python 3.13)
-- **Database:** MongoDB Atlas via `beanie` (Async ODM) & `motor`.
-- **AI Orchestration:** LangGraph (LangChain) for state-machine workflows.
-- **LLM Provider:** DeepSeek V3/R1 via the standard `openai` Python SDK (massively cheaper, 100% interoperable with OpenAI formats).
-- **Authentication:** OAuth2 using JWT Tokens (with `passlib` bcrypt hashing).
+## 1. Quick Start / Setup (Important)
+
+### System Dependencies
+- **libmagic:** Essential for the security layer (MIME-type sniffing). 
+  - MacOS: `brew install libmagic`
+  - Linux: `sudo apt-get install libmagic1`
+
+### Environment Configuration (`.env`)
+You must create a `.env` file in the root. The application will crash on boot if these are missing:
+- `MONGO_URL`: Your MongoDB Atlas connection string.
+- `SECRET_KEY`: Long random string for JWT signing.
+- `DEEPSEEK_API_KEY`: API key for our primary AI engine.
+- `GITHUB_TOKEN`: Classic Personal Access Token for the GitHub Auditor.
 
 ---
 
-## 2. The AI Analysis Pipeline (LangGraph)
-We explicitly decoupled our AI logic to avoid building massive, unmaintainable REST endpoints. The core resume analysis happens in `graph.py` and flows as follows:
+## 2. Authentication Flow (JWT Deep Dive)
 
-1. **`parse_resume` node:** Uses `pdfplumber` (with tight X/Y spatial tolerances) to parse complex multi-column PDFs without scrambling the reading order. It then sends the raw text to DeepSeek to extract structured JSON (skills, education, contact info).
-2. **`audit_github` node:** Scrapes the user's GitHub (using a Personal Access Token) to calculate their total public repos and follower count.
-3. **`market_research` node:** Uses DeepSeek as a web agent to dynamically generate a list of trending technologies and certifications required for the student's target job title.
-4. **`analyze_gap` node:** A pure Python heuristic engine that assigns scores (out of 100). It merges the GitHub data, the parsed degree, and the skills into a final "Readiness Score".
-
-**Why this matters:** Because state flows between these nodes linearly, a developer can easily inject a loop, a human-in-the-loop checkpoint, or parallelize nodes without breaking the rest of the application.
-
----
-
-## 3. The Bias-Free Job Matching Engine
-**Location:** `jobs/matching.py`
-
-When we match a student to a scraped job from `topjobs.lk`, **we do not use AI.**
-
-### Why no AI?
-LLMs are generative, not logical. If you ask an LLM to evaluate a candidate against a job description, it introduces systemic bias (favoring certain writing styles, hallucinating math, or heavily weighting gendered/cultural context clues hidden in names).
-
-### How the deterministic engine works:
-We use a pure Python mathematical matching algorithm utilizing weighted variables:
-1. **Required Skills (Weight: 1.0):** If a student possesses this skill, they get 1.0 points. Otherwise, it is added to the `missing_skills` array.
-2. **Nice-to-Have Skills (Weight: 0.5):** If a student possesses this, they get 0.5 points.
-
-```python
-match_percentage = (achieved_weight / total_possible_weight) * 100
-```
-This guarantees an objective, reproducible, and mathematically sound `match_percentage`. The AI is used purely as a **Sensor** (to extract the skills from the PDF) but the Python engine acts as the **Calculator**.
+### Process:
+1. **Signup (`/auth/signup`):** Hashes passwords using `bcrypt`. Auto-creates a `Student` document in MongoDB for users with the `student` role.
+2. **Login (`/auth/login`):** Uses OAuth2 Password Flow. 
+   - **Note:** Must be sent as `x-www-form-urlencoded` (Form Data), NOT JSON.
+   - Credentials map `username` -> `email`.
+3. **Token:** Returns a JWT containing the user's email in the `sub` claim. 
+4. **Protection:** Use `Depends(get_current_user)` from `auth.dependencies` to protect any route. It decodes the JWT and queries MongoDB to return the full `User` object.
 
 ---
 
-## 4. Student Integration Flow
-1. **Signup (`POST /auth/signup`):** When a user signs up with the role `"student"`, the backend automatically generates an empty `Student` document in MongoDB linked to their email.
-2. **Analysis (`POST /analyze`):** When the student uploads their resume, the LangGraph pipeline runs. Before returning the final result, the backend patches the student's MongoDB document, permanently updating their `skills` array, `github_url`, parsed `education`, and `ai_insights`.
-3. **Job Match (`GET /jobs/matches/{student_id}`):** The API fetches the student's now-populated `skills` array and compares it against all active jobs in the remote database using the weighted algorithm above.
+## 3. HOW THE SCORING WORKS (The Logic Engine)
+
+We use two distinct scoring systems to ensure a "Bias-Free Meritocracy."
+
+### A. Readiness Score (Student Assessment)
+Located in `services.py`. This is a deterministic score out of 100 based on the facts extracted from the student's profile.
+
+| Pillar | Max Pts | Logic |
+| :--- | :--- | :--- |
+| **Pillar 1: GitHub (Proof of Work)** | 40 | Based on raw GitHub stats. >20 repos = **40pts**, >5 repos = **20pts**. |
+| **Pillar 2: Technical Depth** | 40 | Uses a category-tiered map. Tier 3 (Cloud/DevOps/AI) = **10pts**, Tier 2 (Frameworks) = **8pts**, Tier 1 (Vanilla) = **5pts**. |
+| **Pillar 3: Education** | 20 | Binary check. If degree contains keywords like "CS", "IT", or "Engineering" = **20pts**. |
+
+**Truth Override:** If a student has > 5 GitHub repos, we automatically inject "Git" and "Version Control" into their skill pool, even if they forgot to put it on their resume. We trust the code, not just the words.
+
+### B. Job Match Score (weighted logic)
+Located in `jobs/matching.py`. This is a mathematical comparison between a student's profile and a specific job.
+
+- **Required Skills (Weight 1.0):** Skills the company *needs*.
+- **Nice-to-Have (Weight 0.5):** Skills that are a *bonus*.
+
+**Formula:** `(Total Achieved Weight / Total Possible Weight) * 100`.
+
+**Why this matters:** We do NOT use AI for the final matching score. AI is only used to *extract* the data (The Sensor). Using AI for calculation creates bias. Our Python engine (The Calculator) ensures every candidate is judged purely on their technical alignment.
+
+---
+
+## 4. The AI Analysis Pipeline (LangGraph)
+Analysis happens in `graph.py` via a state-machine:
+1. **`parse_resume`:** Uses `pdfplumber` spatial parsing (reading horizontal planes) to avoid scrambling multi-column layouts.
+2. **`market_research`:** DeepSeek researches the job title to generate dynamic "Must-Have" requirements for the current year.
+3. **`audit_github`:** Low-level audit of repos/languages.
+4. **`analyze_gap`:** Final merge node that runs the scoring logic above.
 
 ---
 
 ## 5. Security & Rate Limiting
-- **Magic Bytes Validation:** We use `python-magic` alongside file extensions to ensure uploaded files are truly PDFs or DOCX files to prevent script injection. File sizes are hard-capped at 5MB.
-- **Rate Limiting:** Implemented via `slowapi` (e.g., `1/hour` for web scraping, `10/minute` for heavy AI endpoints) to protect against DDoS and API billing abuse.
-- **Fail-Fast Environment Loading:** Handled in `config.py`. If the server starts missing critical environment variables (e.g., `SECRET_KEY`), it immediately crashes with a descriptive error, preventing silent security failures in production.
+- **MIME Checking:** We check "Magic Bytes" to prevent users from renaming a `.exe` to `.pdf`.
+- **Rate Limits:** `/auth/login` is limited to 5/min to prevent brute force. `/jobs/scrape` is 1/hour per IP to respect source sites.
+- **Lockdown CORS:** Configured to allow only specific origins in production.
