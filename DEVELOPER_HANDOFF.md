@@ -20,6 +20,7 @@ Create a file named `.env` in the root folder. **Never share this file.** It con
 - `MONGO_URL`: The "phone number" to our database.
 - `SECRET_KEY`: A long random string used to "sign" our identity tokens (JWT).
 - `DEEPSEEK_API_KEY`: The key to our AI's brain.
+- `GITHUB_TOKEN`: Your access key for auditing code repositories.
 
 ### C. The Bodyguards (`config.py`)
 On startup, our code runs `config.validate_env()`.
@@ -40,11 +41,30 @@ How does the app know who you are? We use **JWT (JSON Web Tokens)**.
 ### Step 2: Login (`/auth/login`)
 - **Important:** SwaggerUI sends this as "Form Data," not JSON.
 - **Logic:** We compare your input to the hashed password in the DB using `verify_password`. 
-- **The Token:** If correct, we return a "JWT." Think of this as a digital wristband that expires in 30 minutes.
+- **The Token:** If correct, we return a "JWT." Think of this as a digital wristband.
 
-### Step 3: Protection (`Dependencies`)
+### Step 3: Token Expiration & Security
+- **Expiration:** Tokens are set to expire in **30 minutes**. 
+- **What does expiry mean?** It’s like a "Self-Destruct" timer. Even if a hacker steals your token, it becomes useless after 30 minutes. This forces the user to log in again to get a fresh "wristband."
+- **Syntax:** We set `exp` (expiry) inside the `create_access_token` function in `auth/utils.py`.
+
+### Step 4: Protection (`Dependencies`)
 - **Syntax:** `current_user: User = Depends(get_current_user)`
 - **How it flows:** Every time you call a protected route, FastAPI looks at your "wristband" (JWT), decodes it to find your email, and checks the database to see if you still exist.
+
+---
+
+## 🤫 The Truth About the `SECRET_KEY`
+
+**Can you change it to something simple like "malik"?**
+Technically, yes. **But should you? ABSOLUTELY NOT.** 
+
+- **The Analogy:** Think of the `SECRET_KEY` as a unique stamp used to seal an envelope. If your stamp is just a common circle (like the word "malik"), anyone can carve a circle into a potato and forge your seal.
+- **The Risk:** If a hacker guesses your `SECRET_KEY`, they can create their own fake tokens on their own computer, set their `role` to `"admin"`, and gain full control over your backend.
+- **The Best Practice:** Always use a long, complex random string. It prevents "Brute Force" attacks where computers try millions of words per second to guess your key.
+
+**What happens if you change it?**
+If you change the `SECRET_KEY` in your `.env` file, **every single user currently logged in will be instantly kicked out**. Their existing tokens were signed with the "Old Stamp," so the server will no longer recognize them. They will have to log in again.
 
 ---
 
@@ -74,6 +94,8 @@ Located in `services.py`.
     - *Tier 3 (AI/DevOps):* 10 pts.
     - *Tier 2 (React/FastAPI):* 8 pts.
 - **Pillar 3: Degree (20 pts).** We check for "Computer Science" or "Engineering" keywords.
+
+**Truth Override:** If a student has > 5 GitHub repos, we automatically inject "Git" and "Version Control" into their skill pool, even if they forgot to put it on their resume. We trust the code, not just the words.
 
 ### Engine B: The Job Matcher (Weighted Sets)
 Located in `jobs/matching.py`. 
