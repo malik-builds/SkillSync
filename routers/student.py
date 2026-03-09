@@ -1,0 +1,1004 @@
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Response
+from datetime import datetime
+from typing import List, Optional
+from auth.models import User
+from auth.dependencies import get_current_user
+from models import Student
+from jobs.models import Job
+from routers.application_models import Application
+from routers.message_models import Conversation, Message
+from services import SKILL_ONTOLOGY
+import math
+
+# ─── Null-safety helpers – use everywhere in this file ────────────────────────
+def sl(val): """Safe list"""; return val if val is not None else []
+def sn(val): """Safe number"""; return val if val is not None else 0
+def ss(val): """Safe string"""; return val if val is not None else ""
+
+router = APIRouter()
+
+async def get_student_doc(current_user: User) -> Student:
+    student = await Student.find_one(Student.email == current_user.email)
+    if not student:
+        raise HTTPException(404, "Student profile not found")
+    return student
+
+def calculate_profile_strength(student: Student) -> int:
+    strength = 0
+    extracted = student.extracted_data or {}
+    
+    if extracted.get("name"): 
+        strength += 20
+    if len(student.skills) >= 3: 
+        strength += 20
+    if student.github_url: 
+        strength += 20
+    gap_report = extracted.get("gap_report", {})
+    if gap_report.get("score", 0) > 0: 
+        strength += 20
+    if len(extracted.get("professional_history", [])) > 0: 
+        strength += 20
+        
+    return min(strength, 100)
+
+@router.get("/dashboard")
+async def get_dashboard(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        gap_score = student.extracted_data.get("gap_report", {}).get("score", 0) if student.extracted_data else 0
+        applications = await Application.find(Application.student_email == student.email).to_list()
+        
+        interviews = [app for app in applications if app.status == "interview"]
+        
+        # Format recent applications
+        recent_apps = []
+        for app in sorted(applications, key=lambda a: a.applied_at, reverse=True)[:5]:
+            job = await Job.get(app.job_id)
+            title = ss(job.title) if job else "Unknown Job"
+            company = ss(job.company) if job else "Unknown Company"
+            recent_apps.append({
+                "id": str(app.id),
+                "jobTitle": title,
+                "company": company,
+                "status": ss(app.status),
+                "appliedDate": app.applied_at.isoformat() if app.applied_at else datetime.utcnow().isoformat(),
+            })
+            
+        # Always suggest some jobs regardless of gap score
+        suggested_jobs = []
+        all_jobs = await Job.find_all().limit(5).to_list()
+        for job in all_jobs:
+            suggested_jobs.append({
+                "id": str(job.id),
+                "title": ss(job.title),
+                "company": ss(job.company),
+                "location": ss(job.location) or "Sri Lanka",
+                "type": "Full-time",
+                "matchScore": sn(gap_score) if gap_score > 0 else 65,
+                "tags": sl(job.required_skills)[:3],
+            })
+                
+        return {
+            "kpis": {
+                "matchScore": sn(gap_score),
+                "appliedCount": sn(len(applications)),
+                "interviewCount": sn(len(interviews)),
+                "profileStrength": sn(calculate_profile_strength(student)),
+            },
+            "recentApplications": recent_apps,
+            "suggestedJobs": suggested_jobs
+        }
+    except Exception as e:
+        print(f"[ERROR] /student/dashboard: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/analysis")
+async def get_analysis(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        extracted = student.extracted_data or {}
+        if not extracted:
+            return {
+                "score": 0,
+                "radarData": [],
+                "gaps": [],
+                "missingCritical": [],
+                "verifiedSkills": [],
+                "matchedJobs": [],
+                "recommendations": []
+            }
+            
+        gap_report = extracted.get("gap_report", {})
+        
+        # Radar Data based on Skill Ontology mapping
+        radar_data = []
+        student_skills_set = set([s.lower() for s in sl(student.skills)])
+        for category, skills in SKILL_ONTOLOGY.items():
+            matched_count = 0
+            for skill in skills:
+                skill_lower = skill.lower()
+                if any(skill_lower == s or (len(s) > 3 and s in skill_lower) or (len(skill_lower) > 3 and skill_lower in s) for s in student_skills_set):
+                    matched_count += 1
+            score_val = min(100, matched_count * 25) if matched_count > 0 else 0
+            radar_data.append({"subject": category, "A": score_val, "B": 75, "fullMark": 100})
+            
+        missing_critical = sl(gap_report.get("missing_critical", []))
+        verified_skills = sl(student.skills)[:15]  # top 15 confirmed skills
+        gaps = [{"skill": s, "priority": "high"} for s in missing_critical]
+        
+        recommendations = [
+            {"title": f"Learn {s}", "reason": f"{s} is a critical gap for your target role. Add a project demonstrating this skill to your GitHub.", "priority": "high"}
+            for s in missing_critical[:5]
+        ]
+        
+        overall_score = sn(gap_report.get("score", 0))
+        
+        return {
+            "score": overall_score,
+            "radarData": radar_data,
+            "gaps": gaps,
+            "missingCritical": missing_critical,
+            "verifiedSkills": verified_skills,
+            "matchedJobs": [],
+            "recommendations": recommendations
+        }
+    except Exception as e:
+        print(f"[ERROR] /student/analysis: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/analysis/gaps")
+async def get_analysis_gaps(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        gap_report = student.extracted_data.get("gap_report", {}) if student.extracted_data else {}
+        missing_crit = sl(gap_report.get("missing_critical", []))
+        
+        gaps = []
+        for i, skill in enumerate(missing_crit):
+            gaps.append({
+                "id": f"gap_{i}",
+                "name": skill if isinstance(skill, str) else str(skill),
+                "category": "Technical",
+                "priority": "Critical" if i < 3 else "High",
+                "impact": f"Required for target role",
+                "missingPercent": max(30, 90 - (i * 10))
+            })
+        return gaps
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/analysis/job-matches")
+async def get_analysis_job_matches(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        jobs = await Job.find(Job.source != "Internal").to_list()
+        
+        results = []
+        student_skills = set(s.lower() for s in student.skills)
+        for job in jobs[:10]:
+            reqs = job.required_skills or []
+            matched = [r for r in reqs if r.lower() in student_skills]
+            missing = [r for r in reqs if r.lower() not in student_skills]
+            score = (len(matched) / max(len(reqs), 1)) * 100
+            
+            results.append({
+                "id": str(job.id),
+                "title": ss(job.title),
+                "company": ss(job.company),
+                "matchScore": round(score),
+                "suitabilityPercentage": round(score),
+                "salary": "Competitive",
+                "description": ss(job.description)[:200] if job.description else "",
+                "missingSkills": missing,
+                "matchedSkills": matched
+            })
+            
+        return sorted(results, key=lambda x: x["matchScore"], reverse=True)
+    except Exception as e:
+        print(f"[ERROR] /job-matches: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/cv")
+async def get_cv(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        extracted = student.extracted_data or {}
+        contact = extracted.get("contact_info", {})
+        
+        return {
+            "name": extracted.get("name", student.name),
+            "email": student.email,
+            "phone": contact.get("phone", ""),
+            "github": contact.get("github", student.github_url or ""),
+            "skills": student.skills,
+            "workExperience": student.work_experience,
+            "projects": student.project_experience,
+            "education": student.education_history
+        }
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/cv/analysis")
+async def get_cv_analysis(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        extracted = student.extracted_data or {}
+        ats = extracted.get("ats_feedback", {})
+        
+        score_est = ats.get("score_estimate", "").lower()
+        score = 60
+        if "high" in score_est: score = 85
+        elif "low" in score_est: score = 35
+        
+        return {
+            "score": score,
+            "issues": ats.get("critical_issues", []),
+            "tips": ats.get("optimization_tips", [])
+        }
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.put("/cv")
+async def update_cv(updates: dict = Body(...), current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        if not student.extracted_data:
+            student.extracted_data = {}
+            
+        for key in ["name", "workExperience", "projects", "education"]:
+            if key in updates:
+                map_key = "professional_history" if key == "workExperience" else "project_experience" if key == "projects" else "education_history" if key == "education" else "name"
+                student.extracted_data[map_key] = updates[key]
+                
+        if "skills" in updates:
+            student.skills = updates["skills"]
+            student.extracted_data["skills"] = updates["skills"]
+            
+        await student.save()
+        return await get_cv(current_user)
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/jobs")
+async def search_jobs(
+    q: Optional[str] = None, 
+    type: Optional[str] = None, 
+    location: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        query = {"source": "Internal"}
+        if q:
+            query["$or"] = [{"title": {"$regex": q, "$options": "i"}}, {"description": {"$regex": q, "$options": "i"}}]
+        if location:
+            query["location"] = {"$regex": location, "$options": "i"}    
+            
+        # Get student skills for match score calculation
+        student = await get_student_doc(current_user)
+        student_skills = set(s.lower() for s in sl(student.skills))
+            
+        total = await Job.find(query).count()
+        jobs = await Job.find(query).skip((page - 1) * limit).limit(limit).to_list()
+        
+        formatted = []
+        for job in jobs:
+            reqs = sl(job.required_skills)
+            matched = [r for r in reqs if r.lower() in student_skills]
+            missing = [r for r in reqs if r.lower() not in student_skills]
+            match_score = round((len(matched) / max(len(reqs), 1)) * 100)
+            
+            formatted.append({
+                "id": str(job.id),
+                "title": ss(job.title),
+                "company": ss(job.company),
+                "location": ss(job.location) or "Sri Lanka",
+                "type": getattr(job, "type", "Full-time"),
+                "description": ss(job.description),
+                "requirements": sl(job.required_skills),
+                "niceToHave": sl(job.nice_to_have),
+                "postedDate": job.created_at.isoformat(),
+                "salary": f"LKR {job.salary_min}k - {job.salary_max}k" if getattr(job, "salary_min", 0) > 0 else "Negotiable",
+                "tags": sl(job.required_skills)[:3],
+                "category": getattr(job, "department", "Engineering"),
+                "matchScore": match_score,
+                "matchedSkills": matched,
+                "missingSkills": missing,
+            })
+        
+        # Sort by match score descending
+        formatted.sort(key=lambda x: x["matchScore"], reverse=True)
+            
+        return {
+            "jobs": formatted,
+            "total": total,
+            "page": page,
+            "totalPages": math.ceil(total / limit) if limit > 0 else 1
+        }
+    except Exception as e:
+        print(f"[ERROR] /jobs: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/jobs/{job_id}")
+async def get_job_detail(job_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        job = await Job.get(job_id)
+        if not job: raise HTTPException(404, "Job not found")
+        return {
+            "id": str(job.id),
+            "title": job.title,
+            "company": job.company,
+            "location": job.location or "Sri Lanka",
+            "type": "Full-time",
+            "description": job.description,
+            "requirements": job.required_skills,
+            "niceToHave": job.nice_to_have,
+            "postedDate": job.created_at.isoformat(),
+            "salary": None,
+            "tags": job.required_skills[:3] if job.required_skills else [],
+            "category": getattr(job, "job_category", "Engineering")
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/jobs/{job_id}/analysis")
+async def analyze_job(job_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        job = await Job.get(job_id)
+        if not job: raise HTTPException(404, "Job not found")
+        student = await get_student_doc(current_user)
+        
+        student_skills = set(s.lower() for s in student.skills)
+        reqs = job.required_skills or []
+        matched = [r for r in reqs if r.lower() in student_skills]
+        missing = [r for r in reqs if r.lower() not in student_skills]
+        score = (len(matched) / max(len(reqs), 1)) * 100
+        
+        desc = "Strong match" if score >= 80 else "Good fit" if score >= 50 else "Needs work"
+        
+        return {
+            "matchScore": round(score),
+            "matchedSkills": matched,
+            "missingSkills": missing,
+            "recommendation": desc
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/jobs/{job_id}/apply")
+async def apply_job(job_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        existing = await Application.find_one(Application.job_id == job_id, Application.student_email == student.email)
+        if existing:
+            return {"success": True, "message": "Already applied"}
+            
+        app = Application(
+            student_email=student.email,
+            student_id=str(student.id),
+            job_id=job_id,
+            status="applied"
+        )
+        await app.insert()
+        return {"success": True}
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/jobs/{job_id}/save")
+async def save_job(job_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        if job_id not in student.saved_jobs:
+            student.saved_jobs.append(job_id)
+            await student.save()
+        return {"success": True}
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.delete("/jobs/{job_id}/save")
+async def unsave_job(job_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        if job_id in student.saved_jobs:
+            student.saved_jobs.remove(job_id)
+            await student.save()
+        return {"success": True}
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/applications")
+async def get_applications(status: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    try:
+        query = {"student_email": current_user.email}
+        if status:
+            query["status"] = status
+            
+        apps = await Application.find(query).to_list()
+        
+        formatted = []
+        stats = {"total": len(apps), "active": 0, "interviews": 0, "offers": 0, "rejected": 0}
+        
+        for app in apps:
+            if app.status in ["applied", "reviewing", "interview", "shortlisted"]: stats["active"] += 1
+            if app.status == "interview": stats["interviews"] += 1
+            if app.status == "offer": stats["offers"] += 1
+            if app.status == "rejected": stats["rejected"] += 1
+            
+            job = await Job.get(app.job_id)
+            formatted.append({
+                "id": str(app.id),
+                "role": job.title if job else "Unknown",
+                "company": job.company if job else "Unknown",
+                "stage": app.status,
+                "appliedDate": app.applied_at.isoformat(),
+                "tags": app.tags
+            })
+            
+        return {
+            "applications": formatted,
+            "stats": stats
+        }
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/applications/{app_id}")
+async def get_application_detail(app_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        app = await Application.get(app_id)
+        if not app or app.student_email != current_user.email:
+            raise HTTPException(404, "Application not found")
+        job = await Job.get(app.job_id)
+        return {
+            "id": str(app.id),
+            "role": job.title if job else "Unknown",
+            "company": job.company if job else "Unknown",
+            "stage": app.status,
+            "appliedDate": app.applied_at.isoformat(),
+            "tags": app.tags,
+            "notes": app.notes
+        }
+    except HTTPException: raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.delete("/applications/{app_id}")
+async def withdraw_application(app_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        app = await Application.get(app_id)
+        if not app or app.student_email != current_user.email:
+            raise HTTPException(404, "Application not found")
+        app.status = "withdrawn"
+        await app.save()
+        return {"success": True}
+    except HTTPException: raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/profile")
+async def get_profile(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        extracted = student.extracted_data or {}
+        gap_score = extracted.get("gap_report", {}).get("score", 0)
+        
+        # Build rich skills list with verification from GitHub
+        github_report = extracted.get("github_report") or student.ai_insights or {}
+        github_langs = set()
+        if isinstance(github_report, dict):
+            for lang in sl(github_report.get("languages", [])):
+                github_langs.add(lang.lower() if isinstance(lang, str) else "")
+            for tech in sl(github_report.get("technologies", [])):
+                github_langs.add(tech.lower() if isinstance(tech, str) else "")
+        
+        rich_skills = []
+        for s in sl(student.skills):
+            is_verified = s.lower() in github_langs
+            rich_skills.append({
+                "name": s,
+                "level": "Advanced" if is_verified else "Intermediate",
+                "source": "github" if is_verified else "cv",
+                "verified": is_verified
+            })
+        
+        # Build experience from student.work_experience
+        experience = []
+        for i, exp in enumerate(sl(student.work_experience)):
+            if isinstance(exp, dict):
+                experience.append({
+                    "id": f"exp_{i}",
+                    "role": exp.get("role", exp.get("title", "Unknown Role")),
+                    "company": exp.get("company", "Unknown"),
+                    "duration": exp.get("duration", ""),
+                    "type": exp.get("type", "Full-time"),
+                    "description": exp.get("description", ""),
+                    "skillsUsed": exp.get("key_tasks", exp.get("skills", [])),
+                })
+        
+        # Build projects from student.project_experience
+        projects = []
+        for i, proj in enumerate(sl(student.project_experience)):
+            if isinstance(proj, dict):
+                projects.append({
+                    "id": f"proj_{i}",
+                    "title": proj.get("name", proj.get("title", f"Project {i+1}")),
+                    "description": proj.get("description", ""),
+                    "techStack": proj.get("technologies", proj.get("tech_stack", [])),
+                })
+            elif isinstance(proj, str):
+                projects.append({
+                    "id": f"proj_{i}",
+                    "title": proj,
+                    "description": "",
+                    "techStack": [],
+                })
+        
+        # Build education from student.education_history
+        education = []
+        for i, edu in enumerate(sl(student.education_history)):
+            if isinstance(edu, dict):
+                education.append({
+                    "id": f"edu_{i}",
+                    "institution": edu.get("institution", edu.get("university", "Unknown")),
+                    "degree": edu.get("degree", edu.get("program", "")),
+                    "year": edu.get("year", edu.get("graduation_year", "")),
+                    "grade": edu.get("grade", edu.get("gpa", "")),
+                    "modules": edu.get("modules", edu.get("courses", [])),
+                })
+        
+        return {
+            "id": str(student.id),
+            "name": student.name or current_user.name,
+            "email": student.email,
+            "university": "IIT Sri Lanka",
+            "course": student.course or "",
+            "skills": rich_skills,
+            "githubUrl": student.github_url or "",
+            "gapScore": gap_score,
+            "profileStrength": calculate_profile_strength(student),
+            "projects": projects,
+            "experience": experience,
+            "education": education,
+        }
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.patch("/profile")
+async def update_profile(updates: dict = Body(...), current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        
+        if "name" in updates: student.name = updates["name"]
+        if "course" in updates: student.course = updates["course"]
+        if "skills" in updates: student.skills = updates["skills"]
+        if "githubUrl" in updates: student.github_url = updates["githubUrl"]
+            
+        await student.save()
+        return await get_profile(current_user)
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/settings")
+async def get_settings(current_user: User = Depends(get_current_user)):
+    try:
+        return {
+            "email": current_user.email,
+            "notifications": current_user.notifications or {
+                "jobAlerts": True, "applicationUpdates": True,
+                "messages": True, "weeklyDigest": False
+            },
+            "privacy": current_user.privacy or {
+                "profileVisible": True,
+                "showGitHub": True,
+                "showEmail": False
+            }
+        }
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.put("/settings")
+async def update_settings(updates: dict = Body(...), current_user: User = Depends(get_current_user)):
+    try:
+        if "notifications" in updates:
+            current_user.notifications = updates["notifications"]
+        if "privacy" in updates:
+            current_user.privacy = updates["privacy"]
+        await current_user.save()
+        return await get_settings(current_user)
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/settings/change-password")
+async def change_password(data: dict = Body(...), current_user: User = Depends(get_current_user)):
+    from auth.utils import verify_password, hash_password
+    try:
+        current = data.get("currentPassword")
+        new_pwd = data.get("newPassword")
+        
+        if not verify_password(current, current_user.hashed_password):
+            raise HTTPException(401, "Invalid current password")
+            
+        current_user.hashed_password = hash_password(new_pwd)
+        await current_user.save()
+        return {"success": True}
+    except HTTPException: raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.delete("/settings/account")
+async def delete_account(current_user: User = Depends(get_current_user)):
+    try:
+        current_user.is_active = False
+        await current_user.save()
+        return {"success": True}
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/messages/{convo_id}")
+async def get_message_detail(convo_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        c = await Conversation.get(convo_id)
+        if not c or current_user.email not in c.participants:
+            raise HTTPException(404, "Conversation not found")
+        return {
+            "id": str(c.id),
+            "participants": c.participants,
+            "messages": [m.dict() for m in c.messages],
+            "updatedAt": c.updated_at.isoformat()
+        }
+    except HTTPException: raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/messages/{convo_id}")
+async def send_message(convo_id: str, data: dict = Body(...), current_user: User = Depends(get_current_user)):
+    try:
+        import uuid
+        c = await Conversation.get(convo_id)
+        if not c or current_user.email not in c.participants:
+            raise HTTPException(404, "Conversation not found")
+            
+        m = Message(
+            id=str(uuid.uuid4()),
+            senderId=current_user.email,
+            text=data.get("text", "")
+        )
+        c.messages.append(m)
+        c.last_message = m.text
+        c.updated_at = datetime.now()
+        await c.save()
+        return {"success": True}
+    except HTTPException: raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.patch("/messages/{convo_id}/read")
+async def mark_messages_read(convo_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        c = await Conversation.get(convo_id)
+        if not c or current_user.email not in c.participants:
+            raise HTTPException(404, "Conversation not found")
+        for m in c.messages:
+            if m.senderId != current_user.email:
+                m.read = True
+        await c.save()
+        return {"success": True}
+    except HTTPException: raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/learning-paths")
+async def get_learning_paths(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        extracted = student.extracted_data or {}
+        gap_report = extracted.get("gap_report", {})
+        market_reqs = extracted.get("market_requirements", {})
+        
+        missing_crit = sl(gap_report.get("missing_critical", []))
+        must_haves = sl(market_reqs.get("must_have", []))
+        
+        target = current_user.target_role if getattr(current_user, "target_role", "") else "Software Engineer"
+        
+        def make_nodes(skill):
+            """Generate simple task nodes for a skill"""
+            return [
+                {"id": f"n_{skill.lower().replace(' ','_')}_1", "title": f"Study {skill} Basics", "status": "locked", "type": "task", "description": f"Research and understand the fundamental concepts of {skill}.", "skills": [skill]},
+                {"id": f"n_{skill.lower().replace(' ','_')}_2", "title": f"Implement {skill} in a Project", "status": "locked", "type": "task", "description": f"Apply your {skill} knowledge by building a small practical project.", "skills": [skill]},
+                {"id": f"n_{skill.lower().replace(' ','_')}_3", "title": f"Verify {skill} Proficiency", "status": "locked", "type": "task", "description": f"Complete a self-assessment or peer review to confirm your mastery of {skill}.", "skills": [skill]}
+            ]
+        
+        dynamic_paths = []
+        
+        # 1. Generate paths for missing critical skills (high priority)
+        for i, skill in enumerate(missing_crit[:3]):
+            path_id = f"path_gap_{i}_{skill.lower().replace(' ', '_')}"
+            nodes = make_nodes(skill)
+            # Mark first node as active
+            if nodes:
+                nodes[0]["status"] = "in-progress"
+            dynamic_paths.append({
+                "id": path_id,
+                "title": f"Mastering {skill}",
+                "description": f"A targeted track to bridge your gap in {skill}, essential for {target} roles.",
+                "skills": [skill], 
+                "progress": student.learning_progress.get(path_id, 0),
+                "estimatedHours": 15,
+                "jobGoal": target,
+                "totalCourses": len(nodes),
+                "completedCourses": 0,
+                "companyTarget": "Top Tier",
+                "nodes": nodes,
+                "resources": []
+            })
+            
+        # 2. Add remaining must_haves if less than 4 total paths
+        added_skills = set([s.lower() for s in missing_crit[:3]])
+        for skill in must_haves:
+            if len(dynamic_paths) >= 4:
+                break
+            if skill.lower() not in added_skills:
+                path_id = f"path_req_{skill.lower().replace(' ', '_')}"
+                nodes = make_nodes(skill)
+                if nodes:
+                    nodes[0]["status"] = "in-progress"
+                dynamic_paths.append({
+                    "id": path_id,
+                    "title": f"Advancing in {skill}",
+                    "description": f"Strengthen your expertise in {skill} to remain competitive for {target} roles.",
+                    "skills": [skill],
+                    "progress": student.learning_progress.get(path_id, 0),
+                    "estimatedHours": 10,
+                    "jobGoal": target,
+                    "totalCourses": len(nodes),
+                    "completedCourses": 0,
+                    "companyTarget": "Tech Companies",
+                    "nodes": nodes,
+                    "resources": []
+                })
+                added_skills.add(skill.lower())
+                
+        # 3. Fallback if no data
+        if len(dynamic_paths) == 0:
+            dynamic_paths.append({
+                "id": "path_fundamentals",
+                "title": f"Core {target} Fundamentals",
+                "description": "Essential foundations for your target role. Run an analysis to get a personalized path.",
+                "skills": ["General"],
+                "progress": student.learning_progress.get("path_fundamentals", 0),
+                "estimatedHours": 20,
+                "jobGoal": target,
+                "totalCourses": 3,
+                "completedCourses": 0,
+                "companyTarget": "Any",
+                "nodes": [
+                    {"id": "n_general_1", "title": "Upload Your CV & Analyze", "status": "in-progress", "type": "course", "duration": "5 min", "description": "Start by uploading your CV and running the AI analysis.", "skills": []},
+                    {"id": "n_general_2", "title": "Review Gap Report", "status": "locked", "type": "course", "duration": "10 min", "description": "Understand your skill gaps and areas to improve.", "skills": []},
+                    {"id": "n_general_3", "title": "Build Your First Project", "status": "locked", "type": "project", "duration": "1 week", "description": "Create a portfolio project showcasing your skills.", "skills": []}
+                ],
+                "resources": []
+            })
+            
+        return dynamic_paths
+        
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.patch("/learning-paths/{path_id}/nodes/{node_id}")
+async def update_learning_progress(path_id: str, node_id: str, data: dict = Body(...), current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        student.learning_progress[path_id] = data.get("progress", 0)
+        await student.save()
+        return {"success": True}
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+# ─── Student Applications ──────────────────────────────────────────────────────
+
+@router.get("/applications")
+async def get_student_applications(current_user: User = Depends(get_current_user)):
+    try:
+        apps = await Application.find(Application.student_email == current_user.email).to_list()
+        result = []
+        for app in apps:
+            job = await Job.get(app.job_id)
+            result.append({
+                "id": str(app.id),
+                "jobId": app.job_id,
+                "jobTitle": job.title if job else "Unknown Role",
+                "company": job.company if job else "Unknown Company",
+                "status": app.status,
+                "appliedAt": app.applied_at.isoformat(),
+                "tags": app.tags,
+            })
+        return result
+    except Exception as e:
+        print(f"[ERROR student apps]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/applications")
+async def apply_to_job(data: dict = Body(...), current_user: User = Depends(get_current_user)):
+    """Student applies to a job."""
+    try:
+        job_id = data.get("jobId", "")
+        if not job_id:
+            raise HTTPException(400, "jobId is required")
+        # Check if already applied
+        existing = await Application.find_one({"student_email": current_user.email, "job_id": job_id})
+        if existing:
+            return {"success": False, "message": "Already applied", "applicationId": str(existing.id)}
+        job = await Job.get(job_id)
+        if not job:
+            raise HTTPException(404, "Job not found")
+        app = Application(
+            student_email=current_user.email,
+            student_id=str(current_user.id),
+            job_id=job_id,
+            status="applied",
+        )
+        await app.insert()
+        return {"success": True, "applicationId": str(app.id)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR apply]: {e}")
+        raise HTTPException(500, "Internal error")
+
+# ─── Student Messaging ────────────────────────────────────────────────────────
+
+import uuid as _uuid
+
+def _student_initials(name: str) -> str:
+    parts = (name or "?").split()
+    return (parts[0][0] + parts[-1][0]).upper() if len(parts) >= 2 else parts[0][:2].upper()
+
+@router.get("/messages")
+async def get_student_conversations(current_user: User = Depends(get_current_user)):
+    """List all conversations the student is part of."""
+    try:
+        convs = await Conversation.find({"participants": current_user.email}).to_list()
+        result = []
+        for conv in convs:
+            other_email = next((p for p in conv.participants if p != current_user.email), "")
+            # Try to find recruiter name from User model
+            from auth.models import User as AuthUser
+            other_user = await AuthUser.find_one(AuthUser.email == other_email)
+            other_name = other_user.name if other_user else other_email
+
+            msgs = []
+            for m in conv.messages:
+                # Mark messages from other party as read since student opened it
+                sender_role = "me" if m.senderId == current_user.email else "them"
+                msgs.append({
+                    "id": m.id,
+                    "sender": sender_role,
+                    "senderName": other_name if sender_role == "them" else "You",
+                    "text": m.text,
+                    "timestamp": m.timestamp.isoformat(),
+                    "timestampMs": int(m.timestamp.timestamp() * 1000),
+                    "read": m.read,
+                })
+
+            unread = sum(1 for m in conv.messages if m.senderId != current_user.email and not m.read)
+            result.append({
+                "id": str(conv.id),
+                "recruiterId": other_email,
+                "recruiterName": other_name,
+                "initials": _student_initials(other_name),
+                "jobContext": {
+                    "title": ss(getattr(conv, "job_title", "")),
+                    "company": "Recruiter" # Placeholder as company is not in convo doc directly
+                },
+                "messages": msgs,
+                "archived": conv.is_archived,
+                "lastMessageAt": int(conv.updated_at.timestamp() * 1000),
+                "unreadCount": unread,
+            })
+
+        result.sort(key=lambda c: c["lastMessageAt"], reverse=True)
+        return result
+    except Exception as e:
+        print(f"[ERROR student messages]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/messages/{conv_id}")
+async def get_student_conversation(conv_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific conversation."""
+    try:
+        conv = await Conversation.get(conv_id)
+        if not conv or current_user.email not in conv.participants:
+            raise HTTPException(404, "Conversation not found")
+
+        # Mark all messages from recruiter as read
+        changed = False
+        for m in conv.messages:
+            if m.senderId != current_user.email and not m.read:
+                m.read = True
+                changed = True
+        if changed:
+            await conv.save()
+
+        other_email = next((p for p in conv.participants if p != current_user.email), "")
+        from auth.models import User as AuthUser
+        other_user = await AuthUser.find_one(AuthUser.email == other_email)
+        other_name = other_user.name if other_user else other_email
+
+        msgs = [{
+            "id": m.id,
+            "sender": "me" if m.senderId == current_user.email else "them",
+            "senderName": other_name if m.senderId != current_user.email else "You",
+            "text": m.text,
+            "timestamp": m.timestamp.strftime("%H:%M"),
+            "timestampMs": int(m.timestamp.timestamp() * 1000),
+            "read": m.read,
+        } for m in conv.messages]
+
+        return {
+            "id": str(conv.id),
+            "recruiterId": other_email,
+            "recruiterName": other_name,
+            "initials": _student_initials(other_name),
+            "jobTitle": ss(getattr(conv, "job_title", "")),
+            "messages": msgs,
+            "archived": conv.is_archived,
+            "lastMessageAt": int(conv.updated_at.timestamp() * 1000),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.post("/messages/{conv_id}")
+async def student_send_message(conv_id: str, data: dict = Body(...), current_user: User = Depends(get_current_user)):
+    """Student replies in a conversation."""
+    try:
+        conv = await Conversation.get(conv_id)
+        if not conv or current_user.email not in conv.participants:
+            raise HTTPException(404, "Conversation not found")
+        text = data.get("text", "").strip()
+        if not text:
+            raise HTTPException(400, "text is required")
+        msg = Message(
+            id=str(_uuid.uuid4()),
+            senderId=current_user.email,
+            text=text,
+            timestamp=datetime.utcnow(),
+            read=False,
+        )
+        conv.messages.append(msg)
+        conv.last_message = text
+        conv.updated_at = datetime.utcnow()
+        await conv.save()
+        return {"success": True, "messageId": msg.id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
