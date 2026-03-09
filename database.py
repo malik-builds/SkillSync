@@ -9,9 +9,18 @@ async def init_db():
     client = AsyncIOMotorClient(mongo_url)
     from auth.models import User
     from jobs.models import Job
+    from routers.application_models import Application
+    from routers.message_models import Conversation
+    from routers.recruiter_models import RecruiterProfile, RecruiterJob
+    from routers.university_models import UniversityProfile
     
     await init_beanie(
         database=client.SkillSync,
-        document_models=[models.Student, User, Job]
+        document_models=[
+            models.Student, User, Job, 
+            Application, Conversation, 
+            RecruiterProfile, RecruiterJob, 
+            UniversityProfile
+        ]
     )
     return client
