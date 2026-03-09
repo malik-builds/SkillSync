@@ -22,6 +22,12 @@ from auth.router import router as auth_router
 from auth.dependencies import get_current_user
 from auth.models import User
 from jobs.router import router as jobs_router
+from routers.user import router as user_router
+from routers.cv import router as cv_router
+from routers.student import router as student_router
+from routers.recruiter import router as recruiter_router
+from routers.university import router as university_router
+from routers.misc import router as misc_router
 
 
 # DB CONNECTION
@@ -48,18 +54,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Add Security Middlewares
-app.add_middleware(SecurityHeadersMiddleware)
-
+# Setup CORS
 # TODO: Before production, replace * with your actual 
 # frontend domain e.g. ["https://skillsync.vercel.app"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "https://skillsync.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add Security Middlewares (Must be after CORS so CORS runs first on preflight)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -70,6 +82,24 @@ app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 
 # Include Jobs Router
 app.include_router(jobs_router, prefix="/jobs", tags=["Jobs"])
+
+# Include User Router
+app.include_router(user_router, prefix="/user", tags=["User"])
+
+# Include CV Upload Router
+app.include_router(cv_router, prefix="/cv", tags=["CV"])
+
+# Include Student Router
+app.include_router(student_router, prefix="/student", tags=["Student"])
+
+# Include Recruiter Router
+app.include_router(recruiter_router, prefix="/recruiter", tags=["Recruiter"])
+
+# Include University Router
+app.include_router(university_router, prefix="/university", tags=["University"])
+
+# Include Misc Router
+app.include_router(misc_router, tags=["Misc"])
 
 # --- 1. STUDENT ANALYSIS ROUTE ---
 import graph
@@ -160,7 +190,13 @@ async def analyze_student_endpoint(
                 student.course = edu[0].get("degree", student.course)
                 
             # Attach rich JSON payloads
+            student.work_experience = extracted.get("professional_history", [])
+            student.project_experience = extracted.get("project_experience", [])
+            student.education_history = extracted.get("education_history", [])
+            
             student.extracted_data = extracted
+            student.extracted_data["github_report"] = final_state.get("github_report")
+            student.extracted_data["gap_report"] = final_state.get("gap_report", {})
             student.ai_insights = final_state.get("gap_report", {})
             student.career_roadmap = final_state.get("market_requirements", {})
             
