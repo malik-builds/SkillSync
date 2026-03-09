@@ -17,18 +17,19 @@ Thumbs.db
 *.tmp
 *.cache
 *.class
+temp_*
+debug_*
+check_users.py
+test_post_job.py
 
-# Ignore dependencies directory (if applicable, though package managers handle this)
+# Ignore dependencies directory
 /node_modules/
 /vendor/
 /venv/
 
-# Ignore sensitive files (e.g., environment variables)
+# Ignore sensitive files
 .env
 config.local.json
-# Ignore all Markdown files
-*.md
 
-# Except README
-!README.md
-!readme.md
+# Ignore temporary test directories
+test/
