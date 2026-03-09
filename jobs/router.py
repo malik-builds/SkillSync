@@ -27,7 +27,7 @@ async def scrape_jobs_endpoint(request: Request, current_user: User = Depends(ge
             detail="Admin permissions required to trigger scraping"
         )
         
-    scraped_jobs = await scrape_it_jobs(max_jobs=20)
+    scraped_jobs = await scrape_it_jobs(max_jobs=100)
     
     saved = 0
     skipped = 0
