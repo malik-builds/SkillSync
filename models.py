@@ -48,17 +48,25 @@ class ATSFeedback(BaseModel):
     optimization_tips: List[str]
 
 class Student(Document):
-    name: str
+    name: str = ""
     email: EmailStr
-    course: str
+    course: str = ""
     skills: List[str] = [] # Flattened for quick search
     github_url: Optional[str] = None
+    saved_jobs: List[str] = []
+    learning_progress: dict = {}
+    target_role: Optional[str] = None
     
     # Nested Data Structures
     extracted_data: Optional[dict] = Field(default_factory=dict) 
     # ^ Will follow a structure like:
     # { "work": List[WorkExperience], "skills": List[SkillSet], "ats": ATSFeedback }
     
+    # Explicit promoted fields for reliable frontend access
+    work_experience: List[dict] = []
+    project_experience: List[dict] = []
+    education_history: List[dict] = []
+
     ai_insights: Optional[dict] = Field(default_factory=dict) 
     career_roadmap: Optional[dict] = Field(default_factory=dict) 
     created_at: str = Field(default_factory=lambda: "2026-02-14T20:56:00+05:30")
