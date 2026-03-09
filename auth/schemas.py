@@ -1,20 +1,43 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
-class SignupRequest(BaseModel):
+class SignInRequest(BaseModel):
     email: EmailStr
     password: str
-    role: str = "student"
+    rememberMe: bool = False
 
-class LoginRequest(BaseModel):
+class SignUpRequest(BaseModel):
+    name: str = ""
     email: EmailStr
     password: str
+    role: str = "student"  # student | recruiter | university
+
+class OnboardingState(BaseModel):
+    cvUploaded: bool
+    githubConnected: bool
+    targetRoleSet: bool
+    completed: bool
+
+class UserOut(BaseModel):
+    id: str
+    email: str
+    role: str
+    fullName: str = ""
+    targetRole: Optional[str] = None
+    linkedinId: Optional[str] = None
+    onboarding: OnboardingState
+    cvFileName: Optional[str] = None
+    cvId: Optional[str] = None
+    githubUsername: Optional[str] = None
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserOut
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str = "bearer"
 
 class UserResponse(BaseModel):
-    id: str  # Beanie Document ID
+    id: str
     email: EmailStr
     role: str
