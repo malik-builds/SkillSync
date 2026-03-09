@@ -56,7 +56,7 @@ async def get_job_listings(category_url: str) -> list[dict]:
                 href = a.get("href", "")
                 if href and ("vacancy" in href.lower() or "job" in href.lower() or "applicant" in href.lower()):
                     title = a.text.strip()
-                    if len(title) > 5 and len(jobs) < 20:
+                    if len(title) > 5 and len(jobs) < 50:
                         company = "Unknown Company"
                         parent = a.find_parent("tr") or a.find_parent("div")
                         if parent:
@@ -70,7 +70,7 @@ async def get_job_listings(category_url: str) -> list[dict]:
                             "company": company,
                             "url": full_url
                         })
-            return jobs[:20]
+            return jobs[:100]
         except Exception as e:
             print(f"Error fetching listings from {category_url}: {e}")
             return jobs
@@ -131,7 +131,7 @@ def clean_job_data(raw_job: dict) -> dict:
         "source": "topjobs.lk"
     }
 
-async def scrape_it_jobs(max_jobs: int = 30) -> list[dict]:
+async def scrape_it_jobs(max_jobs: int = 100) -> list[dict]:
     """Main scraping function for IT jobs on topjobs.lk"""
     is_allowed = await check_robots_txt()
     if not is_allowed:
