@@ -16,7 +16,8 @@ PyGithub
 
 
 python-jose[cryptography]
-passlib[bcrypt==4.0.1]
+passlib[bcrypt]
+bcrypt==4.0.1
 python-multipart
 python-magic
 slowapi
