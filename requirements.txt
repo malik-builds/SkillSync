@@ -25,3 +25,4 @@ slowapi
 httpx
 beautifulsoup4
 lxml
+email-validator
