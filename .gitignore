@@ -33,3 +33,7 @@ config.local.json
 
 # Ignore temporary test directories
 test/
+
+# User docs
+malik_docs/
+test/
