@@ -96,9 +96,97 @@ export interface ApplicationsResponse {
   }
 }
 
+type BackendStudentApplication = {
+  id: string
+  jobId?: string
+  jobTitle?: string
+  role?: string
+  company?: string
+  location?: string
+  appliedDate?: string
+  appliedAt?: string
+  status?: string
+  stage?: string
+  matchScore?: number
+}
+
+function mapStageToStatus(stage?: string): Application['status'] {
+  const value = (stage || '').toLowerCase()
+  if (value === 'applied') return 'Applied'
+  if (value === 'reviewing' || value === 'screening') return 'Screening'
+  if (value === 'interview') return 'Interview'
+  if (value === 'offer') return 'Offer'
+  return 'Rejected'
+}
+
+function buildPipelineSteps(status: Application['status'], appliedDate?: string) {
+  const steps = [
+    { label: 'Applied', status: 'pending' as const },
+    { label: 'Screening', status: 'pending' as const },
+    { label: 'Interview', status: 'pending' as const },
+    { label: 'Offer', status: 'pending' as const },
+  ]
+
+  const currentIndex = status === 'Applied'
+    ? 0
+    : status === 'Screening'
+      ? 1
+      : status === 'Interview'
+        ? 2
+        : status === 'Offer'
+          ? 3
+          : -1
+
+  if (currentIndex >= 0) {
+    return steps.map((step, i) => ({
+      ...step,
+      date: i === 0 ? appliedDate : undefined,
+      status: i < currentIndex ? ('completed' as const) : i === currentIndex ? ('current' as const) : ('pending' as const),
+    }))
+  }
+
+  // Rejected path: keep the pipeline completed up to screening for context.
+  return steps.map((step, i) => ({
+    ...step,
+    date: i === 0 ? appliedDate : undefined,
+    status: i <= 1 ? ('completed' as const) : ('pending' as const),
+  }))
+}
+
 export function getApplications(status?: string) {
   const query = status ? `?status=${status}` : ''
-  return api.get<ApplicationsResponse>(`/student/applications${query}`)
+  return api.get<BackendStudentApplication[] | { applications?: BackendStudentApplication[]; stats?: ApplicationsResponse['stats'] }>(`/student/applications${query}`)
+    .then((raw) => {
+      const rawApplications = Array.isArray(raw) ? raw : (raw.applications || [])
+      const rawStats = Array.isArray(raw) ? undefined : raw.stats
+
+      const applications = rawApplications.map((app) => {
+        const normalizedStatus = mapStageToStatus(app.status || app.stage)
+        const appliedDate = app.appliedDate || app.appliedAt || ''
+        return {
+          id: app.id,
+          jobId: app.jobId || '',
+          jobTitle: app.jobTitle || app.role || 'Unknown Role',
+          company: app.company || 'Unknown Company',
+          location: app.location || 'Sri Lanka',
+          appliedDate,
+          status: normalizedStatus,
+          steps: buildPipelineSteps(normalizedStatus, appliedDate),
+          matchScore: app.matchScore || 0,
+        } as Application
+      })
+
+      return {
+        applications,
+        stats: {
+          total: rawStats?.total || applications.length,
+          active: rawStats?.active || applications.filter((a) => ["Applied", "Screening", "Interview"].includes(a.status)).length,
+          interviews: rawStats?.interviews || applications.filter((a) => a.status === "Interview").length,
+          offers: rawStats?.offers || applications.filter((a) => a.status === "Offer").length,
+          rejected: rawStats?.rejected || applications.filter((a) => a.status === "Rejected").length,
+        },
+      } as ApplicationsResponse
+    })
 }
 
 export function getApplicationDetail(applicationId: string) {

@@ -566,8 +566,38 @@ async def update_application_stage(app_id: str, data: dict = Body(...), current_
         if not app:
             raise HTTPException(404, "Application not found")
         stage = data.get("stage", "")
-        app.status = map_stage_to_status(stage)
+        new_status = map_stage_to_status(stage)
+        app.status = new_status
         await app.save()
+
+        # Keep duplicate application records in sync for the same student/job pair.
+        # Some older data may store student applications with student Job IDs while
+        # recruiter views use recruiter Job IDs.
+        linked_job_ids = {str(app.job_id)}
+
+        # If this app points to a recruiter job, include all mirrored student jobs.
+        mirrored_student_jobs = await Job.find(Job.recruiter_job_id == str(app.job_id)).to_list()
+        linked_job_ids.update(str(j.id) for j in mirrored_student_jobs)
+
+        # If this app points to a student job with recruiter link, include recruiter job.
+        try:
+            student_job = await Job.get(str(app.job_id))
+            if student_job and getattr(student_job, "recruiter_job_id", None):
+                linked_job_ids.add(str(student_job.recruiter_job_id))
+        except Exception:
+            pass
+
+        duplicates = await Application.find({
+            "student_email": app.student_email,
+            "job_id": {"$in": list(linked_job_ids)}
+        }).to_list()
+
+        for dup in duplicates:
+            if str(dup.id) == str(app.id):
+                continue
+            dup.status = new_status
+            await dup.save()
+
         return {"success": True}
     except HTTPException:
         raise

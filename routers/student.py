@@ -5,7 +5,7 @@ from auth.models import User
 from auth.dependencies import get_current_user
 from models import Student
 from jobs.models import Job
-from routers.recruiter_models import RecruiterJob
+from routers.recruiter_models import RecruiterJob, RecruiterProfile
 from routers.application_models import Application
 from routers.message_models import Conversation, Message
 from services import SKILL_ONTOLOGY
@@ -23,6 +23,46 @@ async def get_student_doc(current_user: User) -> Student:
     if not student:
         raise HTTPException(404, "Student profile not found")
     return student
+
+async def resolve_application_job(job_id: str) -> dict:
+    """Resolve application job info from student jobs or recruiter jobs."""
+    job = await Job.get(job_id)
+    if job:
+        canonical_id = str(job.recruiter_job_id) if getattr(job, "recruiter_job_id", None) else str(job.id)
+        return {
+            "jobId": canonical_id,
+            "title": job.title,
+            "company": job.company,
+        }
+
+    recruiter_job = await RecruiterJob.get(job_id)
+    if recruiter_job:
+        profile = await RecruiterProfile.find_one(RecruiterProfile.recruiter_email == recruiter_job.recruiter_email)
+        company_name = profile.company_name if profile and profile.company_name else "Unknown Company"
+        return {
+            "jobId": str(recruiter_job.id),
+            "title": recruiter_job.title,
+            "company": company_name,
+        }
+
+    return {
+        "jobId": str(job_id),
+        "title": "Unknown Role",
+        "company": "Unknown Company",
+    }
+
+def application_status_rank(status: str) -> int:
+    """Higher rank means further in pipeline; used when deduplicating by job."""
+    mapping = {
+        "applied": 1,
+        "reviewing": 2,
+        "shortlisted": 3,
+        "interview": 4,
+        "offer": 5,
+        "hired": 6,
+        "rejected": 7,
+    }
+    return mapping.get((status or "").lower(), 0)
 
 def calculate_profile_strength(student: Student) -> int:
     strength = 0
@@ -467,24 +507,54 @@ async def get_applications(status: Optional[str] = None, current_user: User = De
             query["status"] = status
             
         apps = await Application.find(query).to_list()
-        
-        formatted = []
-        stats = {"total": len(apps), "active": 0, "interviews": 0, "offers": 0, "rejected": 0}
-        
+
+        # Deduplicate by canonical jobId (covers student/recruiter id variants for same posting).
+        deduped: dict = {}
         for app in apps:
-            if app.status in ["applied", "reviewing", "interview", "shortlisted"]: stats["active"] += 1
-            if app.status == "interview": stats["interviews"] += 1
-            if app.status == "offer": stats["offers"] += 1
-            if app.status == "rejected": stats["rejected"] += 1
-            
-            job = await Job.get(app.job_id)
-            formatted.append({
+            job_info = await resolve_application_job(app.job_id)
+            canonical_id = job_info["jobId"]
+            candidate = {
                 "id": str(app.id),
-                "role": job.title if job else "Unknown",
-                "company": job.company if job else "Unknown",
+                "jobId": canonical_id,
+                "role": job_info["title"],
+                "company": job_info["company"],
                 "stage": app.status,
                 "appliedDate": app.applied_at.isoformat(),
-                "tags": app.tags
+                "tags": app.tags,
+                "_rank": application_status_rank(app.status),
+                "_appliedAt": app.applied_at,
+            }
+
+            existing = deduped.get(canonical_id)
+            if not existing:
+                deduped[canonical_id] = candidate
+            else:
+                if candidate["_rank"] > existing["_rank"] or (
+                    candidate["_rank"] == existing["_rank"] and candidate["_appliedAt"] > existing["_appliedAt"]
+                ):
+                    deduped[canonical_id] = candidate
+
+        formatted = []
+        stats = {"total": 0, "active": 0, "interviews": 0, "offers": 0, "rejected": 0}
+        for item in deduped.values():
+            stats["total"] += 1
+            if item["stage"] in ["applied", "reviewing", "interview", "shortlisted"]:
+                stats["active"] += 1
+            if item["stage"] == "interview":
+                stats["interviews"] += 1
+            if item["stage"] == "offer":
+                stats["offers"] += 1
+            if item["stage"] == "rejected":
+                stats["rejected"] += 1
+
+            formatted.append({
+                "id": item["id"],
+                "jobId": item["jobId"],
+                "role": item["role"],
+                "company": item["company"],
+                "stage": item["stage"],
+                "appliedDate": item["appliedDate"],
+                "tags": item["tags"],
             })
             
         return {
@@ -501,11 +571,12 @@ async def get_application_detail(app_id: str, current_user: User = Depends(get_c
         app = await Application.get(app_id)
         if not app or app.student_email != current_user.email:
             raise HTTPException(404, "Application not found")
-        job = await Job.get(app.job_id)
+        job_info = await resolve_application_job(app.job_id)
         return {
             "id": str(app.id),
-            "role": job.title if job else "Unknown",
-            "company": job.company if job else "Unknown",
+            "jobId": job_info["jobId"],
+            "role": job_info["title"],
+            "company": job_info["company"],
             "stage": app.status,
             "appliedDate": app.applied_at.isoformat(),
             "tags": app.tags,
@@ -866,18 +937,43 @@ async def update_learning_progress(path_id: str, node_id: str, data: dict = Body
 async def get_student_applications(current_user: User = Depends(get_current_user)):
     try:
         apps = await Application.find(Application.student_email == current_user.email).to_list()
-        result = []
+
+        # Deduplicate by canonical jobId to avoid duplicate cards for same job.
+        deduped: dict = {}
         for app in apps:
-            job = await Job.get(app.job_id)
-            result.append({
+            job_info = await resolve_application_job(app.job_id)
+            canonical_id = job_info["jobId"]
+            candidate = {
                 "id": str(app.id),
-                "jobId": app.job_id,
-                "jobTitle": job.title if job else "Unknown Role",
-                "company": job.company if job else "Unknown Company",
+                "jobId": canonical_id,
+                "jobTitle": job_info["title"],
+                "company": job_info["company"],
                 "status": app.status,
                 "appliedAt": app.applied_at.isoformat(),
                 "tags": app.tags,
-            })
+                "_rank": application_status_rank(app.status),
+                "_appliedAt": app.applied_at,
+            }
+
+            existing = deduped.get(canonical_id)
+            if not existing:
+                deduped[canonical_id] = candidate
+            else:
+                if candidate["_rank"] > existing["_rank"] or (
+                    candidate["_rank"] == existing["_rank"] and candidate["_appliedAt"] > existing["_appliedAt"]
+                ):
+                    deduped[canonical_id] = candidate
+
+        result = [{
+            "id": item["id"],
+            "jobId": item["jobId"],
+            "jobTitle": item["jobTitle"],
+            "company": item["company"],
+            "status": item["status"],
+            "appliedAt": item["appliedAt"],
+            "tags": item["tags"],
+        } for item in deduped.values()]
+
         return result
     except Exception as e:
         print(f"[ERROR student apps]: {e}")

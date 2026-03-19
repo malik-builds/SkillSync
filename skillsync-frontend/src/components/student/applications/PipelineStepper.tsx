@@ -8,9 +8,13 @@ interface PipelineStepperProps {
 }
 
 export function PipelineStepper({ steps }: PipelineStepperProps) {
+    const safeSteps = Array.isArray(steps) && steps.length > 0
+        ? steps
+        : [{ label: "Applied", status: "current" as const }];
+
     // Mobile View: Badge
-    const currentStep = steps.find(s => s.status === 'current') || steps[steps.length - 1];
-    const stepIndex = steps.indexOf(currentStep) + 1;
+    const currentStep = safeSteps.find(s => s.status === 'current') || safeSteps[safeSteps.length - 1];
+    const stepIndex = safeSteps.indexOf(currentStep) + 1;
 
     return (
         <>
@@ -18,7 +22,7 @@ export function PipelineStepper({ steps }: PipelineStepperProps) {
             <div className="md:hidden">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium">
                     <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                    {currentStep.label} (Step {stepIndex}/{steps.length})
+                    {currentStep.label} (Step {stepIndex}/{safeSteps.length})
                 </div>
             </div>
 
@@ -27,7 +31,7 @@ export function PipelineStepper({ steps }: PipelineStepperProps) {
                 {/* Connecting Line */}
                 <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 -z-0"></div>
 
-                {steps.map((step, i) => {
+                {safeSteps.map((step, i) => {
                     const isCompleted = step.status === 'completed';
                     const isCurrent = step.status === 'current';
 
