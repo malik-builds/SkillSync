@@ -4,7 +4,6 @@ import {
     Briefcase,
     CheckCircle2,
     Target,
-    Trophy,
     AlertCircle,
     Upload,
 } from "lucide-react";
@@ -90,7 +89,6 @@ export default function StudentDashboard() {
                                         <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white shadow-sm border border-white/20">
                                             <Target size={24} />
                                         </div>
-                                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-white/20 text-white border border-white/20">+12%</span>
                                     </div>
                                     <h3 className="text-4xl font-extrabold text-white mb-1 tracking-tight">{dashboard?.kpis?.matchScore ?? "—"}</h3>
                                     <p className="text-sm font-bold text-blue-100">Skill Score</p>
@@ -210,19 +208,6 @@ export default function StudentDashboard() {
 
                         {/* Column 3: Sidebar Widgets */}
                         <div className="space-y-8">
-                            {/* Profile Strength - Light Theme Version */}
-                            <GlassCard className="p-8 relative overflow-hidden bg-white border border-blue-100 shadow-xl shadow-blue-500/10">
-                                <div className="absolute top-0 right-0 p-4 opacity-10">
-                                    <Trophy size={100} className="text-blue-600" />
-                                </div>
-                                <h3 className="text-lg font-bold text-gray-900 mb-2">Profile Strength</h3>
-                                <div className="text-5xl font-extrabold text-blue-600 mb-4 tracking-tight">Top 5%</div>
-                                <p className="text-sm text-gray-500 mb-8 max-w-[80%] font-medium">You rank higher than 95% of candidates with similar experience.</p>
-                                <button className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
-                                    View Insights
-                                </button>
-                            </GlassCard>
-
                             {/* Recent Activity */}
                             <GlassCard className="p-6 border-none shadow-sm bg-white">
                                 <div className="flex justify-between items-center mb-6">
