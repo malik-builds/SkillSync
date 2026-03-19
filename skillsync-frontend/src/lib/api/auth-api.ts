@@ -122,8 +122,8 @@ export async function connectGitHub(): Promise<GitHubConnectResponse> {
 
 
 /** POST /user/target-role */
-export async function setTargetRole(role: string): Promise<{ success: boolean }> {
-  return api.post<{ success: boolean }>('/user/target-role', { role })
+export async function setTargetRole(role: string): Promise<{ success: boolean; recomputed?: boolean }> {
+  return api.post<{ success: boolean; recomputed?: boolean }>('/user/target-role', { role })
 }
 
 /** POST /user/complete-onboarding */
