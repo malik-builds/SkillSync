@@ -184,6 +184,10 @@ export default function OnboardingPage() {
     );
 
     // ============================================================
+    // Analyzing Screen (overlay on top of the page)
+    // ============================================================
+
+    // ============================================================
     // Completion Screen
     // ============================================================
     if (showCompletion) {
@@ -461,6 +465,90 @@ export default function OnboardingPage() {
                     </motion.div>
                 </AnimatePresence>
             </main>
+
+            {/* Analyzing overlay */}
+            <AnimatePresence>
+                {isAnalyzing && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="absolute inset-0 z-50 backdrop-blur-md bg-white/60 flex flex-col items-center justify-center gap-10"
+                    >
+                        <AnalyzingScreen />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
+
+// ============================================================
+// ANALYZING SCREEN
+// ============================================================
+function AnalyzingScreen() {
+    const phases = [
+        "Reading your CV...",
+        "Extracting skills & experience...",
+        "Analyzing GitHub profile...",
+        "Calculating skill gaps...",
+        "Building your career roadmap...",
+    ];
+    const [phaseIdx, setPhaseIdx] = useState(0);
+
+    useEffect(() => {
+        const id = setInterval(() => setPhaseIdx((i) => (i + 1) % phases.length), 2200);
+        return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return (
+        <div className="flex flex-col items-center gap-10">
+            {/* Orbiting ring */}
+            <div className="relative flex items-center justify-center">
+                <motion.div
+                    className="relative w-44 h-44"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                >
+                    {/* Layered rings for depth */}
+                    <div className="absolute inset-0 rounded-full border-[7px] border-blue-600/20" />
+                    <div className="absolute inset-0 rounded-full border-[5px] border-blue-500/35" style={{ transform: "rotate(15deg)" }} />
+                    <div className="absolute inset-[4px] rounded-full border-[5px] border-blue-600/55" style={{ transform: "rotate(-10deg)" }} />
+                    <div className="absolute inset-[8px] rounded-full border-[4px] border-blue-400/25" style={{ transform: "rotate(30deg)" }} />
+                    <div className="absolute inset-[2px] rounded-full border-[3px] border-indigo-600/50" style={{ transform: "rotate(5deg)" }} />
+                    <div className="absolute inset-[6px] rounded-full border-[3px] border-blue-500/40" style={{ transform: "rotate(-20deg)" }} />
+
+                    {/* White glowing orbiting dot */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-[38%]">
+                        <div className="w-5 h-5 bg-white rounded-full shadow-[0_0_18px_8px_rgba(255,255,255,0.8),0_0_40px_16px_rgba(59,130,246,0.4)]" />
+                    </div>
+                </motion.div>
+
+                {/* Subtle glow behind ring */}
+                <div className="absolute inset-0 rounded-full bg-blue-600/10 blur-2xl" />
+
+                {/* Reflection */}
+                <div className="absolute bottom-[-18px] left-1/2 -translate-x-1/2 w-24 h-3 bg-blue-600/15 rounded-full blur-lg" />
+            </div>
+
+            {/* Phase text */}
+            <div className="text-center space-y-2">
+                <AnimatePresence mode="wait">
+                    <motion.p
+                        key={phaseIdx}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.35 }}
+                        className="text-slate-800 text-lg font-semibold tracking-wide"
+                    >
+                        {phases[phaseIdx]}
+                    </motion.p>
+                </AnimatePresence>
+                <p className="text-slate-400 text-sm">This may take a moment</p>
+            </div>
         </div>
     );
 }
