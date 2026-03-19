@@ -21,33 +21,54 @@ async def signup(request: SignUpRequest):
     Returns AuthResponse containing the token and user data for auto-login.
     """
     existing_user = await User.find_one(User.email == request.email)
-    if existing_user:
+
+    hashed_pwd = hash_password(request.password)
+    # Use provided name or default to email prefix
+    default_name = request.name or request.email.split("@")[0]
+
+    if existing_user and existing_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
-        
-    hashed_pwd = hash_password(request.password)
-    # Use provided name or default to email prefix
-    default_name = request.name or request.email.split("@")[0]
-    user = User(
-        email=request.email,
-        hashed_password=hashed_pwd,
-        role=request.role,
-        name=default_name
-    )
-    await user.insert()
-    
-    # Auto-create a linked Student profile if the user is a student
-    if request.role == "student":
-        student = Student(
-            name=default_name,
+
+    if existing_user and not existing_user.is_active:
+        # Reuse deleted account email as a fresh account.
+        existing_user.hashed_password = hashed_pwd
+        existing_user.role = request.role
+        existing_user.name = default_name
+        existing_user.is_active = True
+        existing_user.onboarding_complete = False
+        existing_user.target_role = ""
+        existing_user.notifications = {}
+        existing_user.privacy = {}
+        await existing_user.save()
+        user = existing_user
+    else:
+        user = User(
             email=request.email,
-            course="Pending Update",
-            skills=[],
-            created_at=datetime.utcnow().isoformat()
+            hashed_password=hashed_pwd,
+            role=request.role,
+            name=default_name
         )
-        await student.insert()
+        await user.insert()
+
+    # Ensure a linked Student profile exists when registering as student.
+    if request.role == "student":
+        student = await Student.find_one(Student.email == request.email)
+        if student:
+            student.name = default_name
+            student.course = student.course or "Pending Update"
+            await student.save()
+        else:
+            student = Student(
+                name=default_name,
+                email=request.email,
+                course="Pending Update",
+                skills=[],
+                created_at=datetime.utcnow().isoformat()
+            )
+            await student.insert()
 
     # Generate token immediately for auto-login
     access_token = create_access_token(data={"sub": user.email, "role": user.role})
@@ -63,16 +84,16 @@ async def signin(request: Request, body: SignInRequest):
     Returns AuthResponse with token and user object.
     """
     user = await User.find_one(User.email == body.email)
-    if not user or not verify_password(body.password, user.hashed_password):
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found",
+        )
+
+    if not verify_password(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
-        )
-        
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is deactivated"
         )
         
     access_token = create_access_token(data={"sub": user.email, "role": user.role})
@@ -87,7 +108,14 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     Authenticates a user via OAuth2 form data (Legacy/Swagger).
     """
     user = await User.find_one(User.email == form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
