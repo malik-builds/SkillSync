@@ -11,7 +11,6 @@ export function ProfileCompletenessBanner() {
     const { user } = useAuth();
     const [isDismissed, setIsDismissed] = useState(false);
 
-    // Don't render for non-students or when dismissed
     if (!user || user.role !== "student") return null;
     if (isDismissed) return null;
 
@@ -43,11 +42,14 @@ export function ProfileCompletenessBanner() {
     ];
 
     const completedCount = steps.filter((s) => s.completed).length;
-    // Use backend-computed value; fall back to counting steps if not yet available
-    const progressPercent = user.profileCompletion ?? Math.round((completedCount / steps.length) * 100);
+    const progressPercent = Math.round((completedCount / steps.length) * 100);
 
-    // Hide when all steps are individually done OR when onboarding was fully completed
-    if (completedCount >= steps.length || user.onboarding?.completed) return null;
+    // Only hide when every data field is actually filled in.
+    // NOTE: user.onboarding.completed only means they finished the wizard
+    // (possibly skipping steps) — it is NOT a signal that all fields are done.
+    // Every student on the dashboard has onboarding.completed=true, so checking
+    // it here would permanently hide the banner. We intentionally ignore it.
+    if (completedCount >= steps.length) return null;
 
     return (
         <GlassCard className="p-6 mb-8 border border-blue-100 bg-white/80 backdrop-blur-sm shadow-sm relative overflow-hidden">
@@ -60,7 +62,7 @@ export function ProfileCompletenessBanner() {
                 <X size={18} />
             </button>
 
-            {/* Header — right-padded so title never overlaps the X button */}
+            {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3 pr-8">
                 <div>
                     <h2 className="text-lg font-bold text-gray-900 mb-0.5">Complete Your Profile</h2>
@@ -75,7 +77,7 @@ export function ProfileCompletenessBanner() {
                             : "bg-blue-50 text-blue-600 border-blue-100"
                     }`}
                 >
-                    {Math.round(progressPercent)}% Complete
+                    {progressPercent}% Complete
                 </div>
             </div>
 
@@ -93,29 +95,17 @@ export function ProfileCompletenessBanner() {
                 />
             </div>
 
-            {/* Steps Grid — exactly 3 columns matching the 3 steps */}
+            {/* Steps */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {steps.map((step) => (
-                    <Link key={step.id} href={step.href}>
+                    step.completed ? (
+                        // Completed — non-clickable
                         <div
-                            className={`
-                                group flex items-center justify-between p-4 rounded-xl border transition-all text-left relative overflow-hidden
-                                ${step.completed
-                                    ? "bg-green-50/60 border-green-100 text-green-700 cursor-default"
-                                    : "bg-white border-gray-200 hover:border-blue-300 hover:shadow-md text-gray-700 hover:bg-blue-50/30 cursor-pointer"
-                                }
-                            `}
+                            key={step.id}
+                            className="flex items-center justify-between p-4 rounded-xl border bg-green-50/60 border-green-100 text-green-700"
                         >
-                            <div className="flex items-center gap-3 relative z-10">
-                                <div
-                                    className={`
-                                        w-9 h-9 rounded-lg flex items-center justify-center transition-colors border shrink-0
-                                        ${step.completed
-                                            ? "bg-white border-green-100 text-green-600 shadow-sm"
-                                            : "bg-gray-50 border-gray-100 text-gray-400 group-hover:text-blue-600 group-hover:bg-white group-hover:border-blue-100 shadow-sm"
-                                        }
-                                    `}
-                                >
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg flex items-center justify-center border bg-white border-green-100 text-green-600 shadow-sm shrink-0">
                                     {step.icon}
                                 </div>
                                 <div className="min-w-0">
@@ -123,15 +113,25 @@ export function ProfileCompletenessBanner() {
                                     <span className="text-xs text-gray-400 font-medium truncate block">{step.description}</span>
                                 </div>
                             </div>
-                            <div className="relative z-10 pl-2 shrink-0">
-                                {step.completed ? (
-                                    <CheckCircle2 size={20} className="text-green-500" />
-                                ) : (
-                                    <ArrowRight size={18} className="text-gray-300 group-hover:text-blue-400 transition-colors" />
-                                )}
-                            </div>
+                            <CheckCircle2 size={20} className="text-green-500 shrink-0 pl-2 ml-2" />
                         </div>
-                    </Link>
+                    ) : (
+                        // Incomplete — clickable link
+                        <Link key={step.id} href={step.href}>
+                            <div className="group flex items-center justify-between p-4 rounded-xl border transition-all bg-white border-gray-200 hover:border-blue-300 hover:shadow-md text-gray-700 hover:bg-blue-50/30 cursor-pointer">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-lg flex items-center justify-center border bg-gray-50 border-gray-100 text-gray-400 group-hover:text-blue-600 group-hover:bg-white group-hover:border-blue-100 shadow-sm shrink-0 transition-colors">
+                                        {step.icon}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="font-bold text-sm block mb-0.5 truncate">{step.label}</span>
+                                        <span className="text-xs text-gray-400 font-medium truncate block">{step.description}</span>
+                                    </div>
+                                </div>
+                                <ArrowRight size={18} className="text-gray-300 group-hover:text-blue-400 transition-colors shrink-0 ml-2" />
+                            </div>
+                        </Link>
+                    )
                 ))}
             </div>
         </GlassCard>
