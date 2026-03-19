@@ -421,6 +421,7 @@ async def search_jobs(
     q: Optional[str] = None, 
     type: Optional[str] = None, 
     location: Optional[str] = None,
+    mode: Optional[str] = None,
     page: int = 1,
     limit: int = 20,
     current_user: User = Depends(get_current_user)
@@ -431,6 +432,21 @@ async def search_jobs(
             query["$or"] = [{"title": {"$regex": q, "$options": "i"}}, {"description": {"$regex": q, "$options": "i"}}]
         if location:
             query["location"] = {"$regex": location, "$options": "i"}    
+        if type:
+            query["type"] = {"$regex": type, "$options": "i"}
+        if mode:
+            selected_modes = [m.strip().lower().replace("-", " ") for m in mode.split(",") if m.strip()]
+            normalized_work_types = []
+            for m in selected_modes:
+                if m in ["on site", "onsite"]:
+                    normalized_work_types.extend(["OnSite", "On Site", "On-Site"])
+                elif m == "hybrid":
+                    normalized_work_types.append("Hybrid")
+                elif m == "remote":
+                    normalized_work_types.append("Remote")
+
+            if normalized_work_types:
+                query["work_type"] = {"$in": list(set(normalized_work_types))}
             
         # Get student skills for match score calculation
         student = await get_student_doc(current_user)

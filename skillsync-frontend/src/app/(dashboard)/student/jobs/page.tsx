@@ -1,14 +1,49 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { JobCard } from "@/components/student/jobs/JobCard";
 import { JobFilters } from "@/components/student/jobs/JobFilters";
 import { useApi } from "@/lib/hooks/useApi";
 import { searchJobs } from "@/lib/api/student-api";
 
 export default function JobsPage() {
-    const { data, loading, error } = useApi(() => searchJobs(), []);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+    const [selectedModes, setSelectedModes] = useState<string[]>([]);
+    const [salaryMin, setSalaryMin] = useState(50);
+
+    const queryText = useMemo(() => {
+        const parts = [searchQuery.trim(), ...selectedRoles];
+        return parts.filter(Boolean).join(" ").trim();
+    }, [searchQuery, selectedRoles]);
+
+    const modeQuery = selectedModes.length > 0 ? selectedModes.join(",") : undefined;
+
+    const { data, loading, error } = useApi(
+        () => searchJobs({ q: queryText || undefined, mode: modeQuery }),
+        [queryText, modeQuery]
+    );
 
     const jobs = data?.jobs ?? [];
+
+    const toggleRole = (role: string) => {
+        setSelectedRoles((prev) =>
+            prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
+        );
+    };
+
+    const toggleMode = (mode: string) => {
+        setSelectedModes((prev) =>
+            prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
+        );
+    };
+
+    const clearFilters = () => {
+        setSearchQuery("");
+        setSelectedRoles([]);
+        setSelectedModes([]);
+        setSalaryMin(50);
+    };
 
     return (
         <div className="min-h-screen pb-20 bg-[#F5F7FA]">
@@ -30,7 +65,17 @@ export default function JobsPage() {
                     {/* Sidebar Filters */}
                     <div className="hidden lg:block lg:col-span-3">
                         <div className="sticky top-24">
-                            <JobFilters />
+                            <JobFilters
+                                searchQuery={searchQuery}
+                                onSearchQueryChange={setSearchQuery}
+                                selectedRoles={selectedRoles}
+                                onToggleRole={toggleRole}
+                                selectedModes={selectedModes}
+                                onToggleMode={toggleMode}
+                                salaryMin={salaryMin}
+                                onSalaryMinChange={setSalaryMin}
+                                onClearFilters={clearFilters}
+                            />
                         </div>
                     </div>
 

@@ -51,6 +51,7 @@ export interface JobSearchParams {
   q?: string
   type?: string
   location?: string
+  mode?: string
   sort?: string
   page?: number
   limit?: number
