@@ -34,7 +34,7 @@ export default function StudentLayout({
     return (
         <div className="min-h-screen bg-[#F5F7FA] text-gray-900 selection:bg-blue-500/20">
             <StudentSidebar />
-            <main className="md:ml-[280px] min-h-screen relative transition-all duration-300">
+            <main className="md:ml-[280px] pt-14 md:pt-0 min-h-screen relative transition-all duration-300">
                 {children}
             </main>
         </div>
