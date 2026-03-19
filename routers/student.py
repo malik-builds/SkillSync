@@ -761,8 +761,30 @@ async def change_password(data: dict = Body(...), current_user: User = Depends(g
 @router.delete("/settings/account")
 async def delete_account(current_user: User = Depends(get_current_user)):
     try:
-        current_user.is_active = False
-        await current_user.save()
+        email = current_user.email
+
+        # Remove student-owned records first to avoid orphan data.
+        student = await Student.find_one(Student.email == email)
+        if student:
+            await student.delete()
+
+        applications = await Application.find(Application.student_email == email).to_list()
+        for app in applications:
+            await app.delete()
+
+        conversations = await Conversation.find({"participants": email}).to_list()
+        for convo in conversations:
+            await convo.delete()
+
+        # Remove student from recruiter saved lists.
+        recruiter_profiles = await RecruiterProfile.find_all().to_list()
+        for profile in recruiter_profiles:
+            if email in (profile.saved_candidates or []):
+                profile.saved_candidates = [c for c in (profile.saved_candidates or []) if c != email]
+                await profile.save()
+
+        # Finally remove auth account record itself.
+        await current_user.delete()
         return {"success": True}
     except Exception as e:
         print(f"[ERROR]: {e}")
