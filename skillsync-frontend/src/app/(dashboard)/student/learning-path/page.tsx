@@ -7,11 +7,12 @@ import { CourseCard } from "@/components/student/learning-path/CourseCard";
 import { CapstoneCard } from "@/components/student/learning-path/CapstoneCard";
 import { ExternalLink, BookOpen, MonitorPlay } from "lucide-react";
 import { useApi } from "@/lib/hooks/useApi";
-import { getLearningPaths } from "@/lib/api/student-api";
+import { getLearningPaths, updateNodeProgress } from "@/lib/api/student-api";
 
 export default function LearningPathPage() {
-    const { data: paths, loading, error } = useApi(() => getLearningPaths(), []);
+    const { data: paths, loading, error, refetch } = useApi(() => getLearningPaths(), []);
     const [activePathId, setActivePathId] = useState<string>("");
+    const [updatingNodeId, setUpdatingNodeId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!activePathId && paths && paths.length > 0) {
@@ -26,6 +27,16 @@ export default function LearningPathPage() {
     }, [paths, activePathId]);
 
     const nodes = path?.nodes ?? [];
+
+    const handleMarkDone = async (pathId: string, nodeId: string) => {
+        try {
+            setUpdatingNodeId(nodeId);
+            await updateNodeProgress(pathId, nodeId, 100, true);
+            refetch();
+        } finally {
+            setUpdatingNodeId(null);
+        }
+    };
 
     if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading learning path...</div>;
     if (error || !path) return <div className="flex items-center justify-center h-64 text-red-500">Failed to load learning path.</div>;
@@ -109,8 +120,12 @@ export default function LearningPathPage() {
                                     </div>
 
                                     {isActive && (
-                                        <button className="shrink-0 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                                            Start Task
+                                        <button
+                                            onClick={() => handleMarkDone(path.id, node.id)}
+                                            disabled={updatingNodeId === node.id}
+                                            className="shrink-0 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
+                                        >
+                                            {updatingNodeId === node.id ? "Saving..." : "Mark as done"}
                                         </button>
                                     )}
                                 </div>

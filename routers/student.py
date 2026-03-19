@@ -261,6 +261,15 @@ async def get_analysis(current_user: User = Depends(get_current_user)):
             }
             
         gap_report = extracted.get("gap_report", {})
+        github_report = extracted.get("github_report") or student.ai_insights or {}
+        github_verified_skills = set()
+        if isinstance(github_report, dict):
+            for lang in sl(github_report.get("languages", [])):
+                if isinstance(lang, str) and lang.strip():
+                    github_verified_skills.add(lang.strip().lower())
+            for tech in sl(github_report.get("technologies", [])):
+                if isinstance(tech, str) and tech.strip():
+                    github_verified_skills.add(tech.strip().lower())
         
         # Radar Data based on Skill Ontology mapping
         radar_data = []
@@ -275,7 +284,10 @@ async def get_analysis(current_user: User = Depends(get_current_user)):
             radar_data.append({"subject": category, "A": score_val, "B": 75, "fullMark": 100})
             
         missing_critical = sl(gap_report.get("missing_critical", []))
-        verified_skills = sl(student.skills)[:15]  # top 15 confirmed skills
+        verified_skills = [
+            s for s in sl(student.skills)
+            if isinstance(s, str) and s.strip().lower() in github_verified_skills
+        ][:15]
         gaps = [{"skill": s, "priority": "high"} for s in missing_critical]
         
         recommendations = [
@@ -738,6 +750,11 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         
         # Build rich skills list with verification from GitHub
         github_report = extracted.get("github_report") or student.ai_insights or {}
+        completed_learning_skills = {
+            ss(skill).strip().lower()
+            for skill in sl(extracted.get("completed_learning_skills", []))
+            if ss(skill).strip()
+        }
         github_langs = set()
         if isinstance(github_report, dict):
             for lang in sl(github_report.get("languages", [])):
@@ -747,11 +764,13 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         
         rich_skills = []
         for s in sl(student.skills):
-            is_verified = s.lower() in github_langs
+            skill_key = s.lower()
+            is_learning_completed = skill_key in completed_learning_skills
+            is_verified = skill_key in github_langs
             rich_skills.append({
                 "name": s,
                 "level": "Advanced" if is_verified else "Intermediate",
-                "source": "github" if is_verified else "cv",
+                "source": "github" if skill_key in github_langs else "manual" if is_learning_completed else "cv",
                 "verified": is_verified
             })
         
@@ -1097,6 +1116,44 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
                 "resources": []
             })
             
+        def _completed_node_ids_for_path(path_id: str, path_nodes: list) -> set:
+            raw_state = student.learning_progress.get(path_id, {})
+
+            # New format: { completedNodeIds: string[] }
+            if isinstance(raw_state, dict):
+                return {ss(node_id) for node_id in sl(raw_state.get("completedNodeIds", [])) if ss(node_id)}
+
+            # Legacy format compatibility: numeric percentage.
+            if isinstance(raw_state, (int, float)) and len(path_nodes) > 0:
+                completed_count = max(0, min(len(path_nodes), int(round((float(raw_state) / 100) * len(path_nodes)))))
+                return {ss(n.get("id")) for n in path_nodes[:completed_count] if ss(n.get("id"))}
+
+            return set()
+
+        # Normalize each path from persisted completion state.
+        for path_obj in dynamic_paths:
+            path_nodes = sl(path_obj.get("nodes", []))
+            completed_ids = _completed_node_ids_for_path(ss(path_obj.get("id")), path_nodes)
+
+            completed_count = 0
+            activated_next = False
+
+            for node in path_nodes:
+                node_id = ss(node.get("id"))
+                if node_id and node_id in completed_ids:
+                    node["status"] = "completed"
+                    completed_count += 1
+                elif not activated_next:
+                    node["status"] = "in-progress"
+                    activated_next = True
+                else:
+                    node["status"] = "locked"
+
+            total_nodes = len(path_nodes)
+            path_obj["totalCourses"] = total_nodes
+            path_obj["completedCourses"] = completed_count
+            path_obj["progress"] = round((completed_count / max(total_nodes, 1)) * 100)
+
         return dynamic_paths
         
     except Exception as e:
@@ -1135,7 +1192,79 @@ async def add_skill_to_learning_path(data: dict = Body(...), current_user: User 
 async def update_learning_progress(path_id: str, node_id: str, data: dict = Body(...), current_user: User = Depends(get_current_user)):
     try:
         student = await get_student_doc(current_user)
-        student.learning_progress[path_id] = data.get("progress", 0)
+
+        existing_state = student.learning_progress.get(path_id, {})
+        if isinstance(existing_state, dict):
+            completed_ids = {ss(node) for node in sl(existing_state.get("completedNodeIds", [])) if ss(node)}
+        else:
+            completed_ids = set()
+
+        completed_flag = data.get("completed")
+        progress_value = data.get("progress")
+
+        if completed_flag is True or (isinstance(progress_value, (int, float)) and progress_value >= 100):
+            completed_ids.add(node_id)
+        elif completed_flag is False:
+            completed_ids.discard(node_id)
+
+        # If all tasks for a skill path are completed, promote that skill as completed.
+        # Node IDs are generated as n_<skill_slug>_<step> where step is 1..3.
+        skill_slug = ""
+        if node_id.startswith("n_") and "_" in node_id[2:]:
+            skill_slug = node_id[2:].rsplit("_", 1)[0]
+
+        if skill_slug:
+            expected_node_ids = {
+                f"n_{skill_slug}_1",
+                f"n_{skill_slug}_2",
+                f"n_{skill_slug}_3",
+            }
+
+            if expected_node_ids.issubset(completed_ids) and skill_slug != "general":
+                extracted = student.extracted_data or {}
+                gap_report = extracted.get("gap_report", {}) if isinstance(extracted.get("gap_report", {}), dict) else {}
+
+                manual_skills = sl(extracted.get("manual_learning_skills", []))
+                missing_crit = sl(gap_report.get("missing_critical", []))
+                must_haves = sl((extracted.get("market_requirements") or {}).get("must_have", [])) if isinstance(extracted.get("market_requirements"), dict) else []
+
+                # Resolve display name from known skill lists first to preserve casing.
+                known_skills = [
+                    *[ss(s) for s in manual_skills],
+                    *[ss(s) for s in missing_crit],
+                    *[ss(s) for s in must_haves],
+                ]
+                skill_name = ""
+                for candidate in known_skills:
+                    if candidate.strip().lower().replace(" ", "_") == skill_slug:
+                        skill_name = candidate.strip()
+                        break
+                if not skill_name:
+                    skill_name = skill_slug.replace("_", " ").strip()
+
+                if skill_name:
+                    # Add to primary profile skills for Profile + Skill Analysis pages.
+                    existing_profile_skills = {ss(s).strip().lower() for s in sl(student.skills) if ss(s).strip()}
+                    if skill_name.lower() not in existing_profile_skills:
+                        student.skills.append(skill_name)
+
+                    # Track completed learning skills.
+                    completed_learning = sl(extracted.get("completed_learning_skills", []))
+                    completed_learning_norm = {ss(s).strip().lower() for s in completed_learning if ss(s).strip()}
+                    if skill_name.lower() not in completed_learning_norm:
+                        completed_learning.append(skill_name)
+                        extracted["completed_learning_skills"] = completed_learning
+
+                    # Remove from critical missing list once learned.
+                    gap_report["missing_critical"] = [
+                        s for s in missing_crit if ss(s).strip().lower() != skill_name.lower()
+                    ]
+                    extracted["gap_report"] = gap_report
+                    student.extracted_data = extracted
+
+        student.learning_progress[path_id] = {
+            "completedNodeIds": list(completed_ids)
+        }
         await student.save()
         return {"success": True}
     except Exception as e:

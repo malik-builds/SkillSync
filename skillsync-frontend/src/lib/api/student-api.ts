@@ -271,8 +271,8 @@ export function getLearningPath(pathId: string) {
   return api.get<LearningPath>(`/student/learning-paths/${pathId}`)
 }
 
-export function updateNodeProgress(pathId: string, nodeId: string, progress: number) {
-  return api.patch<{ success: boolean }>(`/student/learning-paths/${pathId}/nodes/${nodeId}`, { progress })
+export function updateNodeProgress(pathId: string, nodeId: string, progress: number, completed?: boolean) {
+  return api.patch<{ success: boolean }>(`/student/learning-paths/${pathId}/nodes/${nodeId}`, { progress, completed })
 }
 
 export function addSkillToLearningPath(skill: string) {
