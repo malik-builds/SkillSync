@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2, Upload, Github, Linkedin, Target, ArrowRight, X } from "lucide-react";
+import { CheckCircle2, Upload, Github, Target, ArrowRight, X } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useAuth } from "@/lib/auth/AuthContext";
 import Link from "next/link";
@@ -11,9 +11,8 @@ export function ProfileCompletenessBanner() {
     const { user } = useAuth();
     const [isDismissed, setIsDismissed] = useState(false);
 
-    // Don't render for non-students, fully complete profiles, or when dismissed
+    // Don't render for non-students or when dismissed
     if (!user || user.role !== "student") return null;
-    if (user.profileCompletion >= 100) return null;
     if (isDismissed) return null;
 
     const steps = [
@@ -31,15 +30,7 @@ export function ProfileCompletenessBanner() {
             description: "Connect your profile",
             icon: <Github size={20} />,
             completed: !!user.onboarding?.githubConnected,
-            href: "/student/profile",
-        },
-        {
-            id: "linkedin",
-            label: "LinkedIn",
-            description: "Import experience",
-            icon: <Linkedin size={20} />,
-            completed: !!user?.linkedinId,
-            href: "/student/profile",
+            href: "/student/settings",
         },
         {
             id: "role",
@@ -47,12 +38,16 @@ export function ProfileCompletenessBanner() {
             description: "Set your career goal",
             icon: <Target size={20} />,
             completed: !!user.onboarding?.targetRoleSet,
-            href: "/student/profile",
+            href: "/student/settings",
         },
     ];
 
     const completedCount = steps.filter((s) => s.completed).length;
-    const progressPercent = user.profileCompletion;
+    // Use backend-computed value; fall back to counting steps if not yet available
+    const progressPercent = user.profileCompletion ?? Math.round((completedCount / steps.length) * 100);
+
+    // Hide once all steps are done
+    if (completedCount >= steps.length) return null;
 
     return (
         <GlassCard className="p-8 mb-8 border border-blue-100 bg-white/80 backdrop-blur-sm shadow-sm relative overflow-hidden">
