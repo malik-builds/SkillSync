@@ -5,7 +5,8 @@ import {
     CheckCircle2,
     Target,
     Trophy,
-    AlertCircle
+    AlertCircle,
+    Upload,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
@@ -20,6 +21,8 @@ import { getStudentDashboard } from "@/lib/api/student-api";
 export default function StudentDashboard() {
     const { user } = useAuth();
     const { data: dashboard, loading } = useApi(() => getStudentDashboard(), []);
+
+    const hasCv = !!user?.onboarding?.cvUploaded;
 
     return (
         <div className="relative min-h-screen text-gray-900 overflow-x-hidden bg-[#F5F7FA]">
