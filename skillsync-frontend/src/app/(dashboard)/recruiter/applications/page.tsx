@@ -127,20 +127,49 @@ function StageBadge({ stage }: { stage: Stage }) {
 function StageDropdown({ current, onChange }: { current: Stage; onChange: (s: Stage) => void }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false });
     useEffect(() => {
-        const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+        const h = (e: MouseEvent) => {
+            const target = e.target as Node;
+            const clickedTrigger = !!ref.current?.contains(target);
+            const clickedMenu = !!menuRef.current?.contains(target);
+            if (!clickedTrigger && !clickedMenu) {
+                setOpen(false);
+            }
+        };
         document.addEventListener("mousedown", h);
         return () => document.removeEventListener("mousedown", h);
     }, []);
 
     return (
         <div className="relative" ref={ref} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 hover:opacity-75">
+            <button
+                onClick={e => {
+                    const btn = e.currentTarget as HTMLButtonElement;
+                    const rect = btn.getBoundingClientRect();
+                    const menuWidth = 170;
+                    const estimatedMenuHeight = 230;
+                    const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+                    const openUp = rect.bottom + estimatedMenuHeight > window.innerHeight - 8;
+                    setMenuPos({ top: openUp ? rect.top - 8 : rect.bottom + 8, left, openUp });
+                    setOpen(o => !o);
+                }}
+                className="flex items-center gap-1 hover:opacity-75"
+            >
                 <StageBadge stage={current} />
                 <ChevronDown size={10} className="text-gray-400" />
             </button>
             {open && (
-                <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-40 py-1.5 min-w-[150px]">
+                <div
+                    ref={menuRef}
+                    className="fixed bg-white border border-gray-200 rounded-xl shadow-lg z-[220] py-1.5 min-w-[150px]"
+                    style={{
+                        top: menuPos.top,
+                        left: menuPos.left,
+                        transform: menuPos.openUp ? "translateY(-100%)" : "none",
+                    }}
+                >
                     {STAGES.map(s => (
                         <button
                             key={s}
@@ -219,6 +248,7 @@ function AppRow({
 }) {
     const [moreOpen, setMoreOpen] = useState(false);
     const moreRef = useRef<HTMLDivElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: true });
     useEffect(() => {
         const h = (e: MouseEvent) => { if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false); };
         document.addEventListener("mousedown", h);
@@ -312,12 +342,29 @@ function AppRow({
                         <MessageSquare size={14} />
                     </button>
                     <div className="relative" ref={moreRef}>
-                        <button onClick={e => { e.stopPropagation(); setMoreOpen(o => !o); }}
+                        <button onClick={e => {
+                            e.stopPropagation();
+                            const btn = e.currentTarget as HTMLButtonElement;
+                            const rect = btn.getBoundingClientRect();
+                            const menuWidth = 176; // w-44
+                            const estimatedMenuHeight = 210;
+                            const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+                            const hasRoomAbove = rect.top >= estimatedMenuHeight + 8;
+                            setMenuPos({ top: hasRoomAbove ? rect.top - 8 : rect.bottom + 8, left, openUp: hasRoomAbove });
+                            setMoreOpen(o => !o);
+                        }}
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-500 hover:text-blue-700 transition-colors border border-gray-200 hover:border-blue-300">
                             <MoreHorizontal size={14} />
                         </button>
                         {moreOpen && (
-                            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-40 py-1.5 w-44">
+                            <div
+                                className="fixed bg-white border border-gray-200 rounded-xl shadow-lg z-[200] py-1.5 w-44"
+                                style={{
+                                    top: menuPos.top,
+                                    left: menuPos.left,
+                                    transform: menuPos.openUp ? "translateY(-100%)" : "none",
+                                }}
+                            >
                                 {[
                                     { label: "Shortlist", action: () => onStageChange(app.id, "Shortlisted") },
                                     { label: "Schedule Interview", action: () => onStageChange(app.id, "Interview") },
@@ -664,7 +711,7 @@ export default function RecruiterApplicationsPage() {
             )}
 
             {/* Table */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-visible relative">
                 {combined.length === 0 ? (
                     <div className="py-16 text-center">
                         <Users size={28} className="text-gray-200 mx-auto mb-3" />
@@ -673,7 +720,7 @@ export default function RecruiterApplicationsPage() {
                         <button onClick={clearFilters} className="mt-3 text-xs text-blue-600 underline underline-offset-2">Clear all filters</button>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto overflow-y-visible">
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-gray-200 bg-gray-50/70">
