@@ -8,9 +8,11 @@ interface ConnectionCardProps {
     connected: boolean;
     username?: string;
     onAction: () => void;
+    disabled?: boolean;
+    actionLabel?: string;
 }
 
-export function ConnectionCard({ provider, connected, username, onAction }: ConnectionCardProps) {
+export function ConnectionCard({ provider, connected, username, onAction, disabled = false, actionLabel }: ConnectionCardProps) {
     return (
         <GlassCard className="p-4 flex items-center justify-between bg-white border border-gray-200 shadow-sm">
             <div className="flex items-center gap-4">
@@ -31,12 +33,13 @@ export function ConnectionCard({ provider, connected, username, onAction }: Conn
 
             <button
                 onClick={onAction}
+                disabled={disabled}
                 className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${connected
                     ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
                     : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-                {connected ? "Disconnect" : "Connect"}
+                {actionLabel || (connected ? "Disconnect" : "Connect")}
             </button>
         </GlassCard>
     );

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Response, UploadFile, File
 from datetime import datetime
 from typing import List, Optional
+import base64
 from auth.models import User
 from auth.dependencies import get_current_user
 from models import Student
@@ -678,6 +679,7 @@ async def get_profile(current_user: User = Depends(get_current_user)):
             "email": student.email,
             "university": "IIT Sri Lanka",
             "course": student.course or "",
+            "avatarUrl": student.avatar_url or "",
             "skills": rich_skills,
             "githubUrl": student.github_url or "",
             "gapScore": gap_score,
@@ -1154,6 +1156,43 @@ async def get_learning_path(path_id: str, current_user: User = Depends(get_curre
         raise HTTPException(500, "Internal error")
 
 @router.post("/profile/avatar")
-async def upload_avatar(current_user: User = Depends(get_current_user)):
-    """Stub — avatar upload not yet implemented server-side."""
-    return {"avatarUrl": None, "message": "Avatar upload coming soon."}
+async def upload_avatar(
+    avatar: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        student = await get_student_doc(current_user)
+
+        content = await avatar.read()
+        if not content:
+            raise HTTPException(400, "Avatar file is empty")
+        if len(content) > 2 * 1024 * 1024:
+            raise HTTPException(413, "Avatar must be 2MB or smaller")
+
+        allowed_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+        content_type = (avatar.content_type or "").lower()
+        if content_type not in allowed_types:
+            raise HTTPException(415, "Unsupported image type. Use JPG, PNG, WEBP, or GIF")
+
+        encoded = base64.b64encode(content).decode("ascii")
+        avatar_url = f"data:{content_type};base64,{encoded}"
+
+        student.avatar_url = avatar_url
+        await student.save()
+        return {"avatarUrl": avatar_url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.delete("/profile/avatar")
+async def remove_avatar(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        student.avatar_url = None
+        await student.save()
+        return {"avatarUrl": ""}
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")

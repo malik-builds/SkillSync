@@ -245,6 +245,10 @@ export function uploadAvatar(file: File) {
   return api.upload<{ avatarUrl: string }>('/student/profile/avatar', formData)
 }
 
+export function removeAvatar() {
+  return api.delete<{ avatarUrl: string }>('/student/profile/avatar')
+}
+
 // ── Learning Path ──────────────────────────────────────────
 
 export function getLearningPaths() {

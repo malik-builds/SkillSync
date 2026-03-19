@@ -53,6 +53,7 @@ class Student(Document):
     course: str = ""
     skills: List[str] = [] # Flattened for quick search
     github_url: Optional[str] = None
+    avatar_url: Optional[str] = None
     saved_jobs: List[str] = []
     learning_progress: dict = {}
     target_role: Optional[str] = None
