@@ -95,6 +95,7 @@ export function StudentSidebar({ className, disabled = false }: StudentSidebarPr
             <div className="p-6 border-t border-gray-100 space-y-4">
                 <button
                     onClick={handleLogout}
+                    suppressHydrationWarning
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-gray-500 hover:text-red-600 hover:bg-red-50 transition-all font-medium"
                 >
                     <LogOut size={20} />

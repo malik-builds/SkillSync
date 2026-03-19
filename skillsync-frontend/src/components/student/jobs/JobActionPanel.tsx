@@ -29,9 +29,16 @@ export function JobActionPanel({ match, jobId }: JobActionPanelProps) {
                 setApplySuccess(true);
                 // Reset success message after 3 seconds
                 setTimeout(() => setApplySuccess(false), 3000);
+            } else {
+                console.error("Application failed:", response);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to apply to job:", error);
+            if (error?.code === 404) {
+                console.error("Job not found (404). JobId:", jobId);
+            } else if (error?.code === 500) {
+                console.error("Server error (500):", error?.error || "Internal error");
+            }
         } finally {
             setIsApplying(false);
         }

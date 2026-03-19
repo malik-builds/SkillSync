@@ -12,6 +12,7 @@ import { useApi } from "@/lib/hooks/useApi";
 import { getRecruiterApplications, RecruiterApplicationsResponse, createConversation } from "@/lib/api/recruiter-api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { Send } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 // ─── Local type aliases ────────────────────────────────────────────────────────
 
@@ -83,10 +84,20 @@ function FilterPill({
             >
                 {label}
                 {active && onClear && (
-                    <button
+                    <span
+                        role="button"
+                        tabIndex={0}
                         onClick={e => { e.stopPropagation(); onClear(); }}
-                        className="ml-0.5 hover:opacity-70"
-                    ><X size={11} /></button>
+                        onKeyDown={e => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onClear();
+                            }
+                        }}
+                        className="ml-0.5 hover:opacity-70 cursor-pointer"
+                        aria-label={`Clear ${label} filter`}
+                    ><X size={11} /></span>
                 )}
                 {!active && <ChevronDown size={11} />}
             </button>
@@ -397,7 +408,13 @@ function MessageModal({ app, onClose, onSuccess }: { app: Application; onClose: 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function RecruiterApplicationsPage() {
-    const { data: fetchedData, loading, error, refetch } = useApi<RecruiterApplicationsResponse>(() => getRecruiterApplications(), []);
+    const searchParams = useSearchParams();
+    const urlJobId = searchParams.get("job") || searchParams.get("jobId");
+
+    const { data: fetchedData, loading, error, refetch } = useApi<RecruiterApplicationsResponse>(
+        () => getRecruiterApplications(urlJobId ? { jobId: urlJobId } : undefined),
+        [urlJobId]
+    );
     const [apps, setApps] = useState<Application[]>([]);
 
     useEffect(() => {
@@ -410,7 +427,7 @@ export default function RecruiterApplicationsPage() {
         return Array.from(map.values());
     }, [apps]);
     const [search, setSearch] = useState("");
-    const [filterJob, setFilterJob] = useState("all");
+    const [filterJob, setFilterJob] = useState(urlJobId || "all");
     const [filterStage, setFilterStage] = useState<Stage | "all">("all");
     const [filterTag, setFilterTag] = useState<AppTag | "all">("all");
     const [filterMinRating, setFilterMinRating] = useState(0);
@@ -420,6 +437,10 @@ export default function RecruiterApplicationsPage() {
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [msgTarget, setMsgTarget] = useState<Application | null>(null);
     const [toast, setToast] = useState<string | null>(null);
+
+    useEffect(() => {
+        setFilterJob(urlJobId || "all");
+    }, [urlJobId]);
 
     const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 

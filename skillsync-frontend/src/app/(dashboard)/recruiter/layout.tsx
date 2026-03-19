@@ -33,12 +33,13 @@ export default function RecruiterLayout({
                         <input
                             type="text"
                             placeholder="Search candidates, jobs..."
+                            suppressHydrationWarning
                             className="pl-9 pr-4 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-600 focus:border-blue-600 w-72 text-gray-900 bg-stone-50"
                         />
                     </div>
 
                     {/* Notification Bell */}
-                    <button className="relative text-gray-500 hover:text-blue-600 transition-colors">
+                    <button suppressHydrationWarning className="relative text-gray-500 hover:text-blue-600 transition-colors">
                         <Bell size={19} />
                         <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-600 border-2 border-white" />
                     </button>

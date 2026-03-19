@@ -12,6 +12,7 @@ export function JobFilters() {
                     <input
                         type="text"
                         placeholder="Search jobs..."
+                        suppressHydrationWarning
                         className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
                     />
                 </div>

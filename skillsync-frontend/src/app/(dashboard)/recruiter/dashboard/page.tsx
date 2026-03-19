@@ -236,7 +236,7 @@ function GreetingBanner({ onDismiss, name, count }: { onDismiss: () => void; nam
                 <p className="text-blue-100 text-sm leading-relaxed mb-4">
                     You have <span className="font-bold text-white">{count} new application{count !== 1 ? 's' : ''}</span>. It is a lot of work for today! So let&apos;s start.
                 </p>
-                <button onClick={handleReview} className="px-5 py-2 bg-white text-blue-700 text-sm font-semibold rounded-md hover:bg-blue-50 transition-colors shadow-sm">
+                <button onClick={handleReview} suppressHydrationWarning className="px-5 py-2 bg-white text-blue-700 text-sm font-semibold rounded-md hover:bg-blue-50 transition-colors shadow-sm">
                     Review it
                 </button>
             </div>
@@ -289,12 +289,14 @@ function MiniCalendar({ onSelectDate }: { onSelectDate: (date: Date | null) => v
                     <button
                         onClick={() => setOffset(o => o - 1)}
                         disabled={offset === 0}
+                        suppressHydrationWarning
                         className="p-1 rounded hover:bg-stone-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     >
                         <ChevronLeft size={15} className="text-gray-600" />
                     </button>
                     <button
                         onClick={() => setOffset(o => o + 1)}
+                        suppressHydrationWarning
                         className="p-1 rounded hover:bg-stone-100 transition-colors"
                     >
                         <ChevronRight size={15} className="text-gray-600" />
@@ -316,6 +318,7 @@ function MiniCalendar({ onSelectDate }: { onSelectDate: (date: Date | null) => v
                                 <button
                                     key={di}
                                     onClick={() => handleClick(d)}
+                                    suppressHydrationWarning
                                     className={`flex flex-col items-center py-1.5 px-0.5 rounded-md transition-all text-center cursor-pointer
                                         ${isSelected ? "bg-blue-600 text-white shadow-sm" :
                                             isToday ? "bg-blue-50 text-blue-700 border border-blue-200" :
@@ -548,7 +551,7 @@ export default function RecruiterDashboard() {
                         <div className="bg-white border border-gray-200 rounded-md shadow-sm">
                             <div className="border-b border-gray-200 px-4 py-3 bg-stone-50/50 flex justify-between items-center">
                                 <h3 className="text-sm font-semibold text-gray-900">Top Matches</h3>
-                                <button className="text-[11px] font-medium text-blue-700 hover:underline">See all</button>
+                                <button suppressHydrationWarning className="text-[11px] font-medium text-blue-700 hover:underline">See all</button>
                             </div>
                             <div>
                                 {(dashboard?.recentApplications ?? []).length === 0 ? (
@@ -585,10 +588,10 @@ export default function RecruiterDashboard() {
             <div className="flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-100 pt-3 mt-4">
                 <span>Last updated: {lastUpdated} · <span className="font-bold text-gray-700">{dashboard?.stats?.activeJobs ?? 0} active job listings</span></span>
                 <div className="flex items-center gap-4">
-                    <button className="flex items-center gap-1.5 hover:text-gray-700 transition-colors font-medium">
+                    <button suppressHydrationWarning className="flex items-center gap-1.5 hover:text-gray-700 transition-colors font-medium">
                         <Download size={11} /> Export Stats
                     </button>
-                    <button className="flex items-center gap-1.5 hover:text-gray-700 transition-colors font-medium">
+                    <button suppressHydrationWarning className="flex items-center gap-1.5 hover:text-gray-700 transition-colors font-medium">
                         <Bell size={11} /> Notifications
                     </button>
                 </div>

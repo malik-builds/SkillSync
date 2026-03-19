@@ -5,6 +5,7 @@ from auth.models import User
 from auth.dependencies import get_current_user
 from models import Student
 from jobs.models import Job
+from routers.recruiter_models import RecruiterJob
 from routers.application_models import Application
 from routers.message_models import Conversation, Message
 from services import SKILL_ONTOLOGY
@@ -380,20 +381,58 @@ async def analyze_job(job_id: str, current_user: User = Depends(get_current_user
 async def apply_job(job_id: str, current_user: User = Depends(get_current_user)):
     try:
         student = await get_student_doc(current_user)
-        existing = await Application.find_one(Application.job_id == job_id, Application.student_email == student.email)
+        actual_job_id = job_id
+
+        # 1) Resolve via student-facing Job id (normal student flow)
+        student_job = None
+        try:
+            student_job = await Job.get(job_id)
+        except Exception:
+            student_job = None
+
+        if student_job:
+            # Preferred explicit link for internal mirrored jobs
+            if getattr(student_job, "recruiter_job_id", None):
+                actual_job_id = student_job.recruiter_job_id
+            # Backward compatibility for older internal jobs that missed recruiter_job_id
+            elif getattr(student_job, "source", "").lower() == "internal":
+                recruiter_job = await RecruiterJob.find_one(
+                    RecruiterJob.title == student_job.title,
+                    RecruiterJob.location == student_job.location,
+                    RecruiterJob.type == student_job.type,
+                )
+                if recruiter_job:
+                    actual_job_id = str(recruiter_job.id)
+        else:
+            # 2) If not a student Job id, allow direct recruiter job id
+            recruiter_job = None
+            try:
+                recruiter_job = await RecruiterJob.get(job_id)
+            except Exception:
+                recruiter_job = None
+
+            if recruiter_job:
+                actual_job_id = job_id
+            else:
+                raise HTTPException(404, "Job not found")
+        
+        existing = await Application.find_one(Application.job_id == actual_job_id, Application.student_email == student.email)
         if existing:
+            print(f"[APPLY] Already applied to {actual_job_id}")
             return {"success": True, "message": "Already applied"}
             
         app = Application(
             student_email=student.email,
             student_id=str(student.id),
-            job_id=job_id,
+            job_id=actual_job_id,
             status="applied"
         )
         await app.insert()
         return {"success": True}
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"[ERROR]: {e}")
+        print(f"[ERROR apply_job]: {e}")
         raise HTTPException(500, "Internal error")
 
 @router.post("/jobs/{job_id}/save")

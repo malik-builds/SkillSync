@@ -1,6 +1,6 @@
 from beanie import Document
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 class Job(Document):
     title: str
@@ -18,6 +18,7 @@ class Job(Document):
     source: str = "External"
     is_active: bool = True
     created_at: datetime = datetime.utcnow()
+    recruiter_job_id: Optional[str] = None  # Links to RecruiterJob ID for internal postings
 
     class Settings:
         name = "jobs"

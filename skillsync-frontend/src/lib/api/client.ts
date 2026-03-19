@@ -61,7 +61,15 @@ export async function apiRequest<T>(
     return {} as T
   }
 
-  const data = await response.json()
+  const rawBody = await response.text()
+  let data: any = {}
+  if (rawBody) {
+    try {
+      data = JSON.parse(rawBody)
+    } catch {
+      data = { message: rawBody }
+    }
+  }
 
   if (!response.ok) {
     const error: ApiError = {

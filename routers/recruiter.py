@@ -444,7 +444,7 @@ async def create_job(data: dict = Body(...), current_user: User = Depends(requir
         )
         await job.insert()
 
-        # Mirror to student Job collection
+        # Mirror to student Job collection with link to recruiter job
         student_job = Job(
             title=job.title,
             company=profile.company_name,
@@ -460,6 +460,7 @@ async def create_job(data: dict = Body(...), current_user: User = Depends(requir
             department=job.department,
             source="Internal",
             created_at=datetime.utcnow(),
+            recruiter_job_id=str(job.id),  # Store link to recruiter job
         )
         await student_job.insert()
 
