@@ -70,7 +70,7 @@ export function StudentSidebar({ className, disabled = false }: StudentSidebarPr
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 overflow-y-auto py-4 px-6 space-y-2">
+            <nav className="flex-1 overflow-hidden py-3 px-5 space-y-1">
                 {NAV_ITEMS.map((item) => {
                     const isActive = pathname === item.href;
                     return (
