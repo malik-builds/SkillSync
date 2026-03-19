@@ -272,9 +272,14 @@ export function updateNodeProgress(pathId: string, nodeId: string, progress: num
   return api.patch<{ success: boolean }>(`/student/learning-paths/${pathId}/nodes/${nodeId}`, { progress })
 }
 
+export function addSkillToLearningPath(skill: string) {
+  return api.post<{ success: boolean; alreadyAdded: boolean }>('/student/learning-paths/add-skill', { skill })
+}
+
 // ── Analysis ───────────────────────────────────────────────
 
 export interface AnalysisOverview {
+  targetRole?: string
   score: number
   radarData: SkillData[]
   gaps: SkillGap[]

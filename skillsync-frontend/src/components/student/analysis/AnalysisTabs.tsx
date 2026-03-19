@@ -8,23 +8,38 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { SkillGap, JobMatch } from "@/types/analysis";
 import { ArrowRight, CheckCircle2, AlertTriangle, Lightbulb } from "lucide-react";
 import { useApi } from "@/lib/hooks/useApi";
-import { getSkillGaps, getJobMatches, getAnalysisOverview } from "@/lib/api/student-api";
+import { addSkillToLearningPath, getLearningPaths, getSkillGaps, getJobMatches, getAnalysisOverview } from "@/lib/api/student-api";
 
 const TABS = ["Overview", "Skill Gaps", "Job Matches", "Recommendations"];
 
 export function AnalysisTabs() {
     const [activeTab, setActiveTab] = useState("Overview");
     const [selectedJob, setSelectedJob] = useState<JobMatch | null>(null);
+    const [addedGaps, setAddedGaps] = useState<Record<string, boolean>>({});
 
     const { data: gapsData } = useApi<SkillGap[]>(() => getSkillGaps());
     const { data: jobsData } = useApi<JobMatch[]>(() => getJobMatches());
     const { data: overview } = useApi(() => getAnalysisOverview());
+    const { data: learningPathsData } = useApi(() => getLearningPaths());
 
     const CRITICAL_GAPS = gapsData ?? [];
     const MATCHED_JOBS = jobsData ?? [];
     const verifiedSkills = (overview as any)?.verifiedSkills ?? [];
     const missingCritical = (overview as any)?.missingCritical ?? [];
     const recommendations = (overview as any)?.recommendations ?? [];
+
+    const existingPathSkills = new Set(
+        (learningPathsData ?? [])
+            .flatMap((path: any) => (path?.skills ?? []) as string[])
+            .map((s) => s.toLowerCase().trim())
+            .filter(Boolean)
+    );
+
+    const handleAddGapToLearningPath = async (gap: SkillGap) => {
+        await addSkillToLearningPath(gap.name);
+        setAddedGaps((prev) => ({ ...prev, [gap.id || gap.name]: true }));
+        return true;
+    };
 
     return (
         <div className="mt-8">
@@ -85,7 +100,12 @@ export function AnalysisTabs() {
                 {activeTab === "Skill Gaps" && (
                     <div className="grid md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2">
                         {CRITICAL_GAPS.length > 0 ? CRITICAL_GAPS.map((gap, i) => (
-                            <GapCard key={gap.id || `gap-${i}`} gap={gap} />
+                            <GapCard
+                                key={gap.id || `gap-${i}`}
+                                gap={gap}
+                                onAdd={handleAddGapToLearningPath}
+                                initiallyAdded={!!addedGaps[gap.id || gap.name] || existingPathSkills.has((gap.name || "").toLowerCase().trim())}
+                            />
                         )) : (
                             <div className="md:col-span-2 text-center py-12 text-gray-400">
                                 No skill gaps detected. Run an analysis first!

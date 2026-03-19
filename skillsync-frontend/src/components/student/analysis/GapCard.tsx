@@ -6,14 +6,25 @@ import { ArrowUpRight, Plus, Check } from "lucide-react";
 
 interface GapCardProps {
     gap: SkillGap;
+    onAdd?: (gap: SkillGap) => Promise<boolean | void>;
+    initiallyAdded?: boolean;
 }
 
-export function GapCard({ gap }: GapCardProps) {
-    const [isAdded, setIsAdded] = useState(false);
+export function GapCard({ gap, onAdd, initiallyAdded = false }: GapCardProps) {
+    const [isAdded, setIsAdded] = useState(initiallyAdded);
+    const [isAdding, setIsAdding] = useState(false);
 
-    const handleAddToPath = () => {
-        setIsAdded(true);
-        // Simulate API call
+    const handleAddToPath = async () => {
+        if (isAdded || isAdding) return;
+        try {
+            setIsAdding(true);
+            const result = await onAdd?.(gap);
+            if (result !== false) {
+                setIsAdded(true);
+            }
+        } finally {
+            setIsAdding(false);
+        }
     };
 
     return (
@@ -49,10 +60,10 @@ export function GapCard({ gap }: GapCardProps) {
 
             <button
                 onClick={handleAddToPath}
-                disabled={isAdded}
+                disabled={isAdded || isAdding}
                 className={`w-full py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 ${isAdded
                     ? "bg-green-50 text-green-600 border border-green-200"
-                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20"
+                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
                     }`}
             >
                 {isAdded ? (
@@ -61,7 +72,7 @@ export function GapCard({ gap }: GapCardProps) {
                     </>
                 ) : (
                     <>
-                        <Plus size={16} /> Add to Learning Path
+                        <Plus size={16} /> {isAdding ? "Adding..." : "Add to Learning Path"}
                     </>
                 )}
             </button>

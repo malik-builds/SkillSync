@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { CareerVelocityHeader } from "@/components/student/learning-path/CareerVelocityHeader";
 import { TimelineNode } from "@/components/student/learning-path/TimelineNode";
 import { CourseCard } from "@/components/student/learning-path/CourseCard";
@@ -10,8 +11,20 @@ import { getLearningPaths } from "@/lib/api/student-api";
 
 export default function LearningPathPage() {
     const { data: paths, loading, error } = useApi(() => getLearningPaths(), []);
+    const [activePathId, setActivePathId] = useState<string>("");
 
-    const path = paths?.[0];
+    useEffect(() => {
+        if (!activePathId && paths && paths.length > 0) {
+            setActivePathId(paths[0].id);
+        }
+    }, [paths, activePathId]);
+
+    const path = useMemo(() => {
+        if (!paths || paths.length === 0) return undefined;
+        if (!activePathId) return paths[0];
+        return paths.find((p) => p.id === activePathId) || paths[0];
+    }, [paths, activePathId]);
+
     const nodes = path?.nodes ?? [];
 
     if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading learning path...</div>;
@@ -24,6 +37,26 @@ export default function LearningPathPage() {
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Learning Action Plan</h1>
                     <p className="text-gray-500">Your personalized roadmap to become a {path.jobGoal || "professional"}. Complete each task to progress.</p>
                 </div>
+
+                {(paths?.length || 0) > 1 && (
+                    <div className="mb-5 flex flex-wrap gap-2">
+                        {paths?.map((p) => {
+                            const active = p.id === path?.id;
+                            return (
+                                <button
+                                    key={p.id}
+                                    onClick={() => setActivePathId(p.id)}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${active
+                                        ? "bg-blue-600 text-white border-blue-600"
+                                        : "bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:text-blue-700"
+                                        }`}
+                                >
+                                    {p.title || p.jobGoal || "Learning Path"}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
 
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">

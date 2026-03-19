@@ -5,19 +5,22 @@ import { SkillRadar } from "@/components/student/analysis/SkillRadar";
 import { AnalysisTabs } from "@/components/student/analysis/AnalysisTabs";
 import { useApi } from "@/lib/hooks/useApi";
 import { getAnalysisOverview } from "@/lib/api/student-api";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 export default function AnalysisPage() {
+    const { user } = useAuth();
     const { data, loading, error } = useApi(() => getAnalysisOverview(), []);
 
     if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading analysis...</div>;
     if (error) return <div className="flex items-center justify-center h-64 text-red-500">Failed to load analysis.</div>;
 
     const radarData = data?.radarData ?? [];
+    const targetRole = data?.targetRole || user?.targetRole || "Software Engineer";
 
     return (
         <div className="min-h-screen bg-[#F5F7FA] pb-20">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-                <AnalysisHeader />
+                <AnalysisHeader targetRole={targetRole} />
 
                 <div className="grid lg:grid-cols-12 gap-8">
                     {/* Left: Visualization */}

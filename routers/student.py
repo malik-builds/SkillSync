@@ -247,8 +247,10 @@ async def get_analysis(current_user: User = Depends(get_current_user)):
     try:
         student = await get_student_doc(current_user)
         extracted = student.extracted_data or {}
+        target_role = current_user.target_role if getattr(current_user, "target_role", "") else "Software Engineer"
         if not extracted:
             return {
+                "targetRole": target_role,
                 "score": 0,
                 "radarData": [],
                 "gaps": [],
@@ -284,6 +286,7 @@ async def get_analysis(current_user: User = Depends(get_current_user)):
         overall_score = sn(gap_report.get("score", 0))
         
         return {
+            "targetRole": target_role,
             "score": overall_score,
             "radarData": radar_data,
             "gaps": gaps,
@@ -964,6 +967,7 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
         
         missing_crit = sl(gap_report.get("missing_critical", []))
         must_haves = sl(market_reqs.get("must_have", []))
+        manual_skills = sl(extracted.get("manual_learning_skills", []))
         
         target = current_user.target_role if getattr(current_user, "target_role", "") else "Software Engineer"
         
@@ -977,8 +981,39 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
         
         dynamic_paths = []
         
-        # 1. Generate paths for missing critical skills (high priority)
+        # 1. Generate paths manually added from Skill Gaps tab.
+        added_skills = set()
+        for skill in manual_skills:
+            skill_name = ss(skill).strip()
+            if not skill_name:
+                continue
+            skill_key = skill_name.lower()
+            if skill_key in added_skills:
+                continue
+            path_id = f"path_manual_{skill_key.replace(' ', '_')}"
+            nodes = make_nodes(skill_name)
+            if nodes:
+                nodes[0]["status"] = "in-progress"
+            dynamic_paths.append({
+                "id": path_id,
+                "title": f"Mastering {skill_name}",
+                "description": f"A personalized track you added for {skill_name} to boost your {target} readiness.",
+                "skills": [skill_name],
+                "progress": student.learning_progress.get(path_id, 0),
+                "estimatedHours": 12,
+                "jobGoal": target,
+                "totalCourses": len(nodes),
+                "completedCourses": 0,
+                "companyTarget": "Top Tier",
+                "nodes": nodes,
+                "resources": []
+            })
+            added_skills.add(skill_key)
+
+        # 2. Generate paths for missing critical skills (high priority)
         for i, skill in enumerate(missing_crit[:3]):
+            if ss(skill).lower() in added_skills:
+                continue
             path_id = f"path_gap_{i}_{skill.lower().replace(' ', '_')}"
             nodes = make_nodes(skill)
             # Mark first node as active
@@ -999,8 +1034,8 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
                 "resources": []
             })
             
-        # 2. Add remaining must_haves if less than 4 total paths
-        added_skills = set([s.lower() for s in missing_crit[:3]])
+        # 3. Add remaining must_haves if less than 4 total paths
+        added_skills.update([s.lower() for s in missing_crit[:3]])
         for skill in must_haves:
             if len(dynamic_paths) >= 4:
                 break
@@ -1025,7 +1060,7 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
                 })
                 added_skills.add(skill.lower())
                 
-        # 3. Fallback if no data
+        # 4. Fallback if no data
         if len(dynamic_paths) == 0:
             dynamic_paths.append({
                 "id": "path_fundamentals",
@@ -1048,6 +1083,34 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
             
         return dynamic_paths
         
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/learning-paths/add-skill")
+async def add_skill_to_learning_path(data: dict = Body(...), current_user: User = Depends(get_current_user)):
+    try:
+        skill_name = ss(data.get("skill")).strip()
+        if not skill_name:
+            raise HTTPException(400, "skill is required")
+
+        student = await get_student_doc(current_user)
+        extracted = student.extracted_data or {}
+        manual_skills = sl(extracted.get("manual_learning_skills", []))
+
+        existing = {ss(s).strip().lower() for s in manual_skills if ss(s).strip()}
+        if skill_name.lower() in existing:
+            return {"success": True, "alreadyAdded": True}
+
+        # Keep newest added skill first so it is immediately visible in UI.
+        manual_skills.insert(0, skill_name)
+        extracted["manual_learning_skills"] = manual_skills
+        student.extracted_data = extracted
+        await student.save()
+
+        return {"success": True, "alreadyAdded": False}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[ERROR]: {e}")
         raise HTTPException(500, "Internal error")
