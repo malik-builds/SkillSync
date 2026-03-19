@@ -26,17 +26,17 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
     return (
         <div className="min-h-screen pb-24 md:pb-10">
             {/* Top Nav (Breadcrumb style) */}
-            <div className="bg-[#0A0A0B]/80 backdrop-blur-md border-b border-white/10 sticky top-0 z-40">
+            <div className="bg-white/60 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                    <Link href="/student/jobs" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+                    <Link href="/student/jobs" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
                         <ArrowLeft size={18} />
                         <span className="text-sm font-medium">Back to Search</span>
                     </Link>
                     <div className="flex gap-2">
-                        <button className="p-2 rounded-full hover:bg-white/10 text-gray-400 transition-colors">
+                        <button className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors">
                             <Share2 size={18} />
                         </button>
-                        <button className="p-2 rounded-full hover:bg-white/10 text-gray-400 transition-colors">
+                        <button className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors">
                             <MoreHorizontal size={18} />
                         </button>
                     </div>
@@ -47,12 +47,12 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
                 {/* Header Info */}
                 <div className="mb-8">
                     <div className="flex items-center gap-4 mb-4">
-                        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl font-bold text-white">
+                        <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-3xl font-bold text-blue-600">
                             {JOB.company.charAt(0)}
                         </div>
                         <div>
-                            <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">{JOB.title}</h1>
-                            <p className="text-gray-400 text-sm md:text-base">
+                            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">{JOB.title}</h1>
+                            <p className="text-gray-600 text-sm md:text-base">
                                 {JOB.company} • {JOB.location} • <span className="text-gray-500">{JOB.postedAt}</span>
                             </p>
                         </div>
