@@ -1115,3 +1115,45 @@ async def student_send_message(conv_id: str, data: dict = Body(...), current_use
         raise
     except Exception as e:
         raise HTTPException(500, "Internal error")
+
+# ─── Additional Missing Endpoints ─────────────────────────────────────────────
+
+@router.get("/analysis/recommendations")
+async def get_recommendations(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        extracted = student.extracted_data or {}
+        gap_report = extracted.get("gap_report", {})
+        missing_crit = sl(gap_report.get("missing_critical", []))
+        recommendations = [
+            {"title": f"Learn {s}", "reason": f"{s} is a critical gap for your target role.", "priority": "high"}
+            for s in missing_crit[:5]
+        ]
+        return recommendations
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/cv/download")
+async def download_cv(template: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Stub endpoint — CV download/generation is handled client-side via @react-pdf/renderer."""
+    return {"url": None, "message": "CV download is generated client-side."}
+
+@router.get("/learning-paths/{path_id}")
+async def get_learning_path(path_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        paths = await get_learning_paths(current_user)
+        for path in paths:
+            if path.get("id") == path_id:
+                return path
+        raise HTTPException(404, "Learning path not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/profile/avatar")
+async def upload_avatar(current_user: User = Depends(get_current_user)):
+    """Stub — avatar upload not yet implemented server-side."""
+    return {"avatarUrl": None, "message": "Avatar upload coming soon."}
