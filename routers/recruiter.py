@@ -195,6 +195,7 @@ async def get_dashboard(current_user: User = Depends(require_recruiter)):
             "Interview": sum(1 for a in apps if a.status == "interview"),
             "Offer": sum(1 for a in apps if a.status == "offer"),
             "Hired": sum(1 for a in apps if a.status == "hired"),
+            "Rejected": sum(1 for a in apps if a.status == "rejected"),
         }
 
         # Recent applicants table (last 5)

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { RecruiterStage, AppTag, RecruiterApplication } from "@/types/recruiter";
 import { useApi } from "@/lib/hooks/useApi";
-import { getRecruiterApplications, RecruiterApplicationsResponse, createConversation } from "@/lib/api/recruiter-api";
+import { getRecruiterApplications, RecruiterApplicationsResponse, createConversation, updateApplicationStage } from "@/lib/api/recruiter-api";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { Send } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -26,13 +26,13 @@ type Application = RecruiterApplication;
 const STAGES: Stage[] = ["New", "Screening", "Shortlisted", "Interview", "Offer", "Hired", "Rejected"];
 
 const STAGE_CFG: Record<Stage, { text: string; bg: string; border: string; dot: string }> = {
-    New: { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", dot: "bg-blue-500" },
-    Screening: { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", dot: "bg-blue-500" },
-    Shortlisted: { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", dot: "bg-blue-500" },
-    Interview: { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", dot: "bg-blue-500" },
-    Offer: { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", dot: "bg-blue-500" },
+    New: { text: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", dot: "bg-gray-400" },
+    Screening: { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", dot: "bg-blue-400" },
+    Shortlisted: { text: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200", dot: "bg-violet-400" },
+    Interview: { text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-400" },
+    Offer: { text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-200", dot: "bg-rose-300" },
     Hired: { text: "text-green-700", bg: "bg-green-50", border: "border-green-200", dot: "bg-green-500" },
-    Rejected: { text: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", dot: "bg-gray-400" },
+    Rejected: { text: "text-red-700", bg: "bg-red-50", border: "border-red-200", dot: "bg-red-400" },
 };
 
 const TAG_CFG: Record<AppTag, string> = {
@@ -241,7 +241,7 @@ function AppRow({
     app: Application;
     selected: boolean;
     onSelect: () => void;
-    onStageChange: (id: string, s: Stage) => void;
+    onStageChange: (id: string, s: Stage) => void | Promise<void>;
     onTagChange: (id: string, tags: AppTag[]) => void;
     onMessage: (app: Application) => void;
     onView: (id: string) => void;
@@ -491,7 +491,18 @@ export default function RecruiterApplicationsPage() {
 
     const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-    const updateStage = (id: string, stage: Stage) => { setApps(p => p.map(a => a.id === id ? { ...a, stage } : a)); showToast(`Moved to ${stage}`); };
+    const updateStage = async (id: string, stage: Stage) => {
+        const prevApps = apps;
+        setApps(p => p.map(a => a.id === id ? { ...a, stage } : a));
+        try {
+            await updateApplicationStage(id, stage);
+            showToast(`Moved to ${stage}`);
+        } catch (error) {
+            setApps(prevApps);
+            showToast("Failed to update status");
+            console.error("Failed to update application stage:", error);
+        }
+    };
     const updateTags = (id: string, tags: AppTag[]) => setApps(p => p.map(a => a.id === id ? { ...a, tags } : a));
 
     const toggleSelect = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -530,7 +541,23 @@ export default function RecruiterApplicationsPage() {
 
     const allSelected = combined.length > 0 && combined.every(a => selected.has(a.id));
     const selectAll = (v: boolean) => setSelected(v ? new Set(combined.map(a => a.id)) : new Set());
-    const bulkMove = (stage: Stage) => { setApps(p => p.map(a => selected.has(a.id) ? { ...a, stage } : a)); showToast(`${selected.size} moved to ${stage}`); setSelected(new Set()); };
+    const bulkMove = async (stage: Stage) => {
+        if (selected.size === 0) return;
+        const selectedIds = Array.from(selected);
+        const prevApps = apps;
+
+        setApps(p => p.map(a => selected.has(a.id) ? { ...a, stage } : a));
+        setSelected(new Set());
+
+        try {
+            await Promise.all(selectedIds.map((id) => updateApplicationStage(id, stage)));
+            showToast(`${selectedIds.length} moved to ${stage}`);
+        } catch (error) {
+            setApps(prevApps);
+            showToast("Failed to move some applications");
+            console.error("Bulk stage update failed:", error);
+        }
+    };
     const toggleSort = (col: typeof sortBy) => { if (sortBy === col) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortBy(col); setSortDir("desc"); } };
 
     const totalVisible = apps.filter(a => filterJob === "all" || a.jobId === filterJob).length;
