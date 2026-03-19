@@ -224,6 +224,7 @@ export default function StudentRegisterPage() {
                                     <div className="relative">
                                         <select
                                             {...register("university")}
+                                            suppressHydrationWarning
                                             className="w-full h-11 bg-gray-50 border-2 border-gray-300 rounded-xl px-4 py-2.5 pl-10 text-sm text-gray-900 placeholder-gray-500 outline-none focus:border-blue-500 focus:bg-white transition-all appearance-none shadow-sm"
                                         >
                                             <option value="" className="bg-white text-gray-900">Select University</option>
@@ -241,6 +242,7 @@ export default function StudentRegisterPage() {
                                     <div className="relative">
                                         <select
                                             {...register("programme")}
+                                            suppressHydrationWarning
                                             className="w-full h-11 bg-gray-50 border-2 border-gray-300 rounded-xl px-4 py-2.5 pl-10 text-sm text-gray-900 placeholder-gray-500 outline-none focus:border-blue-500 focus:bg-white transition-all appearance-none shadow-sm"
                                         >
                                             <option value="" className="bg-white text-gray-900">Select Programme</option>
@@ -274,6 +276,7 @@ export default function StudentRegisterPage() {
                                     <div className="relative">
                                         <select
                                             {...register("graduationYear")}
+                                            suppressHydrationWarning
                                             className="w-full h-11 bg-gray-50 border-2 border-gray-300 rounded-xl px-4 py-2.5 pl-10 text-sm text-gray-900 outline-none focus:border-blue-500 focus:bg-white transition-all appearance-none shadow-sm"
                                         >
                                             <option value="" className="bg-white text-gray-900">Year</option>

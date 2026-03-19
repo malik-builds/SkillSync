@@ -52,6 +52,7 @@ export function AuthInput({
                     type={inputType}
                     placeholder={placeholder}
                     {...register}
+                    suppressHydrationWarning
                     className={`
                         w-full bg-white border border-gray-300 rounded-xl px-4 py-3.5 
                         text-gray-900 placeholder-gray-400 outline-none

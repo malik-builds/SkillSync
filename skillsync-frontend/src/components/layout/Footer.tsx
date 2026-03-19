@@ -82,7 +82,7 @@ export function Footer() {
                 </div>
 
                 <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-blue-200/60">
-                    <p>&copy; {new Date().getFullYear()} SkillSync. All rights reserved.</p>
+                    <p suppressHydrationWarning>&copy; {new Date().getFullYear()} SkillSync. All rights reserved.</p>
                     <div className="flex gap-8">
                         <Link href="#" className="hover:text-white transition-colors">Privacy Policy</Link>
                         <Link href="#" className="hover:text-white transition-colors">Terms of Service</Link>

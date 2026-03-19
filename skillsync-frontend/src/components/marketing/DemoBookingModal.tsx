@@ -3,22 +3,33 @@
 import { useModal } from "@/lib/context/ModalContext";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Clock, Globe, ChevronLeft, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export function DemoBookingModal() {
     const { isDemoOpen, closeDemoModal } = useModal();
-    const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+    const [currentMonth, setCurrentMonth] = useState<Date | null>(null);
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
     const [timezone, setTimezone] = useState("India Standard Time (IST)");
 
-    // Calendar Logic
-    const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
-    const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
+    // Initialize dates on client only to avoid hydration mismatch
+    useEffect(() => {
+        const now = new Date();
+        setCurrentMonth(now);
+        setSelectedDate(now);
+    }, []);
 
-    const monthStart = startOfMonth(currentMonth);
+    // Provide safe defaults during hydration
+    const today = currentMonth || new Date();
+    const selectedDateToUse = selectedDate || new Date();
+
+    // Calendar Logic
+    const nextMonth = () => setCurrentMonth(currentMonth ? addMonths(currentMonth, 1) : addMonths(new Date(), 1));
+    const prevMonth = () => setCurrentMonth(currentMonth ? subMonths(currentMonth, 1) : subMonths(new Date(), 1));
+
+    const monthStart = startOfMonth(today);
     const monthEnd = endOfMonth(monthStart);
     const startDate = startOfWeek(monthStart);
     const endDate = endOfWeek(monthEnd);
@@ -111,7 +122,7 @@ export function DemoBookingModal() {
                                         <ChevronLeft className="w-5 h-5" />
                                     </button>
                                     <span className="text-lg font-semibold text-gray-900">
-                                        {format(currentMonth, "MMMM yyyy")}
+                                        {format(today, "MMMM yyyy")}
                                     </span>
                                     <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-full text-gray-600">
                                         <ChevronRight className="w-5 h-5" />
@@ -129,8 +140,8 @@ export function DemoBookingModal() {
                                     </div>
                                     <div className="grid grid-cols-7 gap-1">
                                         {calendarDays.map((day, idx) => {
-                                            const isSelected = selectedDate && isSameDay(day, selectedDate);
-                                            const isCurrentMonth = isSameMonth(day, currentMonth);
+                                            const isSelected = isSameDay(day, selectedDateToUse);
+                                            const isCurrentMonth = isSameMonth(day, today);
                                             const isTodayDate = isToday(day);
 
                                             return (

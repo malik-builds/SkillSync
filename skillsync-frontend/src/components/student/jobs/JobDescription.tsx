@@ -24,7 +24,7 @@ export function JobDescription({ job }: JobDescriptionProps) {
 
                 <h3 className="text-md font-bold text-gray-900 mb-4">Key Responsibilities</h3>
                 <ul className="space-y-3 mb-8">
-                    {job.responsibilities.map((item, i) => (
+                    {(job.responsibilities || []).map((item, i) => (
                         <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
                             <CheckCircle2 size={16} className="text-blue-500 mt-0.5 shrink-0" />
                             {item}
@@ -34,7 +34,7 @@ export function JobDescription({ job }: JobDescriptionProps) {
 
                 <h3 className="text-md font-bold text-gray-900 mb-4">Requirements</h3>
                 <ul className="space-y-3 mb-8">
-                    {job.requirements.map((item, i) => (
+                    {(job.requirements || []).map((item, i) => (
                         <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
                             <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
                             {item}
@@ -44,7 +44,7 @@ export function JobDescription({ job }: JobDescriptionProps) {
 
                 <h3 className="text-md font-bold text-gray-900 mb-4">Benefits</h3>
                 <ul className="space-y-3">
-                    {job.benefits.map((item, i) => (
+                    {(job.benefits || []).map((item, i) => (
                         <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
                             <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 shrink-0" />
                             {item}

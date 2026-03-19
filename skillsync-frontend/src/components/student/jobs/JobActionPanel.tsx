@@ -42,25 +42,25 @@ export function JobActionPanel({ match }: JobActionPanelProps) {
                 {/* Strengths */}
                 <div className="space-y-3 mb-6">
                     <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
-                        <CheckCircle2 size={12} className="text-green-500" /> Your Strengths ({match.strengths.length})
+                        <CheckCircle2 size={12} className="text-green-500" /> Your Strengths ({(match.strengths || []).length})
                     </h4>
                     <div className="flex flex-wrap gap-2">
-                        {match.strengths.slice(0, 4).map(s => (
+                        {(match.strengths || []).slice(0, 4).map(s => (
                             <span key={s.id} className="px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 text-xs font-medium">
                                 {s.name}
                             </span>
                         ))}
-                        {match.strengths.length > 4 && <span className="text-xs text-gray-500 py-1">+{match.strengths.length - 4} more</span>}
+                        {(match.strengths || []).length > 4 && <span className="text-xs text-gray-500 py-1">+{(match.strengths || []).length - 4} more</span>}
                     </div>
                 </div>
 
                 {/* Gaps */}
                 <div className="space-y-3">
                     <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
-                        <AlertTriangle size={12} className="text-yellow-500" /> Critical Gaps ({match.gaps.length})
+                        <AlertTriangle size={12} className="text-yellow-500" /> Critical Gaps ({(match.gaps || []).length})
                     </h4>
                     <div className="space-y-2">
-                        {match.gaps.map(gap => (
+                        {(match.gaps || []).map(gap => (
                             <div key={gap.id} className="flex justify-between items-center p-2 rounded bg-gray-50 border border-gray-100">
                                 <span className="text-sm text-gray-600">{gap.name}</span>
                                 <button
