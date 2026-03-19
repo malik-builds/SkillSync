@@ -1,4 +1,4 @@
-export type ApplicationStatus = 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Rejected';
+export type ApplicationStatus = 'Applied' | 'Screening' | 'Shortlisted' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
 
 export interface ApplicationStep {
     label: string;

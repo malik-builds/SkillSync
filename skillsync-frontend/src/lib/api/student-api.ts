@@ -114,15 +114,19 @@ function mapStageToStatus(stage?: string): Application['status'] {
   const value = (stage || '').toLowerCase()
   if (value === 'applied') return 'Applied'
   if (value === 'reviewing' || value === 'screening') return 'Screening'
+  if (value === 'shortlisted') return 'Shortlisted'
   if (value === 'interview') return 'Interview'
   if (value === 'offer') return 'Offer'
-  return 'Rejected'
+  if (value === 'hired') return 'Hired'
+  if (value === 'rejected') return 'Rejected'
+  return 'Applied'
 }
 
 function buildPipelineSteps(status: Application['status'], appliedDate?: string) {
   const steps = [
     { label: 'Applied', status: 'pending' as const },
     { label: 'Screening', status: 'pending' as const },
+    { label: 'Shortlisted', status: 'pending' as const },
     { label: 'Interview', status: 'pending' as const },
     { label: 'Offer', status: 'pending' as const },
   ]
@@ -131,11 +135,13 @@ function buildPipelineSteps(status: Application['status'], appliedDate?: string)
     ? 0
     : status === 'Screening'
       ? 1
-      : status === 'Interview'
+      : status === 'Shortlisted'
         ? 2
-        : status === 'Offer'
+        : status === 'Interview'
           ? 3
-          : -1
+          : status === 'Offer' || status === 'Hired'
+            ? 4
+            : -1
 
   if (currentIndex >= 0) {
     return steps.map((step, i) => ({
@@ -145,7 +151,7 @@ function buildPipelineSteps(status: Application['status'], appliedDate?: string)
     }))
   }
 
-  // Rejected path: keep the pipeline completed up to screening for context.
+  // Rejected path: keep pipeline completed up to screening for context.
   return steps.map((step, i) => ({
     ...step,
     date: i === 0 ? appliedDate : undefined,
