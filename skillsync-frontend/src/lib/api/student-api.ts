@@ -251,6 +251,10 @@ export function updateStudentProfile(updates: Partial<StudentProfile>) {
   return api.patch<StudentProfile>('/student/profile', updates)
 }
 
+export function verifyGithubProfile() {
+  return api.post<{ success: boolean; verifiedSkills: string[] }>('/student/profile/verify-github')
+}
+
 export function uploadAvatar(file: File) {
   const formData = new FormData()
   formData.append('avatar', file)

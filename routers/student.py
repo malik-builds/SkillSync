@@ -10,6 +10,7 @@ from routers.recruiter_models import RecruiterJob, RecruiterProfile
 from routers.application_models import Application
 from routers.message_models import Conversation, Message
 from services import SKILL_ONTOLOGY
+import services
 import math
 
 # ─── Null-safety helpers – use everywhere in this file ────────────────────────
@@ -114,6 +115,41 @@ def application_status_rank(status: str) -> int:
         "rejected": 7,
     }
     return mapping.get((status or "").lower(), 0)
+
+def extract_github_skill_set(github_report: dict) -> set:
+    """Extract normalized GitHub-derived skill names from multiple report shapes."""
+    if not isinstance(github_report, dict):
+        return set()
+
+    skills = set()
+
+    # Shape A: flat fields used by current student endpoints.
+    for lang in sl(github_report.get("languages", [])):
+        if isinstance(lang, str) and lang.strip():
+            skills.add(lang.strip().lower())
+    for tech in sl(github_report.get("technologies", [])):
+        if isinstance(tech, str) and tech.strip():
+            skills.add(tech.strip().lower())
+
+    # Shape B: auditor output { aggregate_stats: { languages: { name: pct } } }.
+    aggregate_stats = github_report.get("aggregate_stats", {})
+    if isinstance(aggregate_stats, dict):
+        langs = aggregate_stats.get("languages", {})
+        if isinstance(langs, dict):
+            for lang in langs.keys():
+                if isinstance(lang, str) and lang.strip():
+                    skills.add(lang.strip().lower())
+
+    # Shape C: older nested portfolio format used in gap analyzer.
+    portfolio_stats = github_report.get("portfolio_analysis", {}).get("aggregate_stats", {})
+    if isinstance(portfolio_stats, dict):
+        langs = portfolio_stats.get("languages", {})
+        if isinstance(langs, dict):
+            for lang in langs.keys():
+                if isinstance(lang, str) and lang.strip():
+                    skills.add(lang.strip().lower())
+
+    return skills
 
 def calculate_profile_strength(student: Student) -> int:
     strength = 0
@@ -262,14 +298,7 @@ async def get_analysis(current_user: User = Depends(get_current_user)):
             
         gap_report = extracted.get("gap_report", {})
         github_report = extracted.get("github_report") or student.ai_insights or {}
-        github_verified_skills = set()
-        if isinstance(github_report, dict):
-            for lang in sl(github_report.get("languages", [])):
-                if isinstance(lang, str) and lang.strip():
-                    github_verified_skills.add(lang.strip().lower())
-            for tech in sl(github_report.get("technologies", [])):
-                if isinstance(tech, str) and tech.strip():
-                    github_verified_skills.add(tech.strip().lower())
+        github_verified_skills = extract_github_skill_set(github_report)
         
         # Radar Data based on Skill Ontology mapping
         radar_data = []
@@ -755,20 +784,18 @@ async def get_profile(current_user: User = Depends(get_current_user)):
             for skill in sl(extracted.get("completed_learning_skills", []))
             if ss(skill).strip()
         }
-        github_langs = set()
-        if isinstance(github_report, dict):
-            for lang in sl(github_report.get("languages", [])):
-                github_langs.add(lang.lower() if isinstance(lang, str) else "")
-            for tech in sl(github_report.get("technologies", [])):
-                github_langs.add(tech.lower() if isinstance(tech, str) else "")
+        github_langs = extract_github_skill_set(github_report)
         
         rich_skills = []
         for s in sl(student.skills):
-            skill_key = s.lower()
+            skill_name = ss(s).strip()
+            if not skill_name:
+                continue
+            skill_key = skill_name.lower()
             is_learning_completed = skill_key in completed_learning_skills
             is_verified = skill_key in github_langs
             rich_skills.append({
-                "name": s,
+                "name": skill_name,
                 "level": "Advanced" if is_verified else "Intermediate",
                 "source": "github" if skill_key in github_langs else "manual" if is_learning_completed else "cv",
                 "verified": is_verified
@@ -850,6 +877,63 @@ async def update_profile(updates: dict = Body(...), current_user: User = Depends
             
         await student.save()
         return await get_profile(current_user)
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/profile/verify-github")
+async def verify_github_profile(current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        github_url = ss(student.github_url).strip()
+        if not github_url:
+            raise HTTPException(400, "Connect a GitHub profile first")
+
+        github_report = await services.GitHubAuditorTool().audit_repo(github_url)
+        if not isinstance(github_report, dict) or github_report.get("error"):
+            error_message = "GitHub verification failed"
+            if isinstance(github_report, dict):
+                error_message = ss(github_report.get("error")) or error_message
+            raise HTTPException(400, error_message)
+
+        extracted = student.extracted_data or {}
+        extracted["github_report"] = github_report
+
+        # Keep older API consumers compatible by exposing a simple languages list.
+        if not extracted["github_report"].get("languages"):
+            extracted["github_report"]["languages"] = [s.title() for s in sorted(extract_github_skill_set(github_report))]
+
+        # If market requirements already exist, refresh gap report with the new GitHub evidence.
+        market_requirements = extracted.get("market_requirements")
+        if isinstance(market_requirements, dict) and market_requirements:
+            education_history = sl(extracted.get("education_history", []))
+            university_info = {"name": "", "degree": "", "gpa": 0.0}
+            if education_history and isinstance(education_history[0], dict):
+                first_edu = education_history[0]
+                university_info = {
+                    "name": ss(first_edu.get("institution", "")),
+                    "degree": ss(first_edu.get("degree", "")),
+                    "gpa": first_edu.get("gpa", first_edu.get("year", "0.0")),
+                }
+
+            gap_report = services.GapAnalysisTool().analyze_weighted_gap(
+                student_skills=sl(student.skills),
+                market_requirements=market_requirements,
+                github_report=github_report,
+                university_info=university_info,
+            )
+            extracted["gap_report"] = gap_report
+            student.ai_insights = gap_report
+
+        student.extracted_data = extracted
+        await student.save()
+
+        return {
+            "success": True,
+            "verifiedSkills": sorted(extract_github_skill_set(github_report)),
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[ERROR]: {e}")
         raise HTTPException(500, "Internal error")

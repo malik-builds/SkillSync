@@ -1,15 +1,36 @@
 import { StudentProfile } from "@/types/profile";
 import { SkillBadge } from "./SkillBadge";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { verifyGithubProfile } from "@/lib/api/student-api";
 import { CheckCircle2, User } from "lucide-react";
+import { useState } from "react";
 
 interface SkillsTabProps {
     profile: StudentProfile;
+    onRefresh?: () => void;
 }
 
-export function SkillsTab({ profile }: SkillsTabProps) {
+export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
     const verifiedSkills = (profile.skills || []).filter((s) => s.verified);
     const manualSkills = (profile.skills || []).filter((s) => !s.verified);
+    const [verifying, setVerifying] = useState(false);
+    const [verifyMessage, setVerifyMessage] = useState("");
+    const [verifyError, setVerifyError] = useState("");
+
+    const runGithubVerification = async () => {
+        try {
+            setVerifying(true);
+            setVerifyError("");
+            setVerifyMessage("");
+            const result = await verifyGithubProfile();
+            setVerifyMessage(`GitHub verification complete. ${result.verifiedSkills.length} verified skill(s) found.`);
+            onRefresh?.();
+        } catch (e: any) {
+            setVerifyError(e?.error || "GitHub verification failed.");
+        } finally {
+            setVerifying(false);
+        }
+    };
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -67,9 +88,17 @@ export function SkillsTab({ profile }: SkillsTabProps) {
                         <p className="text-xs text-blue-600/80">Link a GitHub repository or upload a project to get verified.</p>
                     </div>
                 </div>
-                <button className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm">
-                    Verify Now
-                </button>
+                <div className="flex flex-col items-end gap-2">
+                    <button
+                        onClick={() => void runGithubVerification()}
+                        disabled={verifying}
+                        className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm disabled:bg-blue-300 disabled:cursor-not-allowed"
+                    >
+                        {verifying ? "Verifying..." : "Verify Now"}
+                    </button>
+                    {verifyMessage && <p className="text-xs text-green-700">{verifyMessage}</p>}
+                    {verifyError && <p className="text-xs text-red-600">{verifyError}</p>}
+                </div>
             </GlassCard>
         </div>
     );

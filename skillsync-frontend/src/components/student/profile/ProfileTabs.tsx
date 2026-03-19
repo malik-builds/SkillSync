@@ -10,6 +10,7 @@ import { EducationTab } from "./EducationTab";
 
 interface ProfileTabsProps {
     profile: StudentProfile;
+    onRefresh?: () => void;
 }
 
 const TABS = [
@@ -20,7 +21,7 @@ const TABS = [
     { id: "personal", label: "Personal" },
 ];
 
-export function ProfileTabs({ profile }: ProfileTabsProps) {
+export function ProfileTabs({ profile, onRefresh }: ProfileTabsProps) {
     const [activeTab, setActiveTab] = useState("skills");
 
     return (
@@ -59,7 +60,7 @@ export function ProfileTabs({ profile }: ProfileTabsProps) {
                 <AnimatePresence mode="wait">
                     {activeTab === "skills" && (
                         <motion.div key="skills" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                            <SkillsTab profile={profile} />
+                            <SkillsTab profile={profile} onRefresh={onRefresh} />
                         </motion.div>
                     )}
                     {activeTab === "projects" && (
