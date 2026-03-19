@@ -1,37 +1,121 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChatList } from "@/components/student/messages/ChatList";
 import { JobContextBar } from "@/components/student/messages/JobContextBar";
 import { MessageBubble } from "@/components/student/messages/MessageBubble";
 import { SmartReply } from "@/components/student/messages/SmartReply";
 import { SafetyWarning } from "@/components/student/messages/SafetyWarning";
-import { Message } from "@/types/messages";
+import { Conversation, Message } from "@/types/messages";
 import { Send, Paperclip, Smile } from "lucide-react";
 import { useApi } from "@/lib/hooks/useApi";
-import { getConversations, sendMessage as sendMessageApi } from "@/lib/api/student-api";
+import { getConversations, markConversationRead, sendMessage as sendMessageApi } from "@/lib/api/student-api";
 
 export default function MessagesPage() {
-    const { data: conversations, loading, error } = useApi(() => getConversations(), []);
+    const { data: fetchedConversations, loading, error, refetch } = useApi(() => getConversations(), []);
+    const [conversations, setConversations] = useState<Conversation[]>([]);
     const [activeId, setActiveId] = useState<string>("");
     const [inputText, setInputText] = useState("");
+    const threadRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const list = fetchedConversations ?? [];
+        setConversations(list as Conversation[]);
+        if (!activeId && list.length > 0) {
+            setActiveId(list[0].id);
+        }
+    }, [fetchedConversations, activeId]);
+
+    useEffect(() => {
+        if (threadRef.current) {
+            threadRef.current.scrollTop = threadRef.current.scrollHeight;
+        }
+    }, [activeId, conversations]);
 
     const convoList = conversations ?? [];
     const effectiveActiveId = activeId || convoList[0]?.id || "";
     const activeConversation = convoList.find(c => c.id === effectiveActiveId) || convoList[0];
 
+    const syncReadState = async (id: string) => {
+        if (!id) return;
+        setConversations((prev) =>
+            prev.map((c) =>
+                c.id === id
+                    ? {
+                        ...c,
+                        unreadCount: 0,
+                        messages: c.messages.map((m) =>
+                            m.sender === "them" ? { ...m, isRead: true } : m
+                        ),
+                    }
+                    : c
+            )
+        );
+        try {
+            await markConversationRead(id);
+        } catch {
+            // Keep UI responsive even if mark-read call fails.
+        }
+    };
+
+    const openConversation = (id: string) => {
+        setActiveId(id);
+        void syncReadState(id);
+    };
+
+    // Ensure the first auto-opened conversation is also persisted as read.
+    useEffect(() => {
+        if (effectiveActiveId) {
+            void syncReadState(effectiveActiveId);
+        }
+    }, [effectiveActiveId]);
+
     const handleSend = async () => {
         if (!inputText.trim() || !activeConversation) return;
+
+        const trimmed = inputText.trim();
+        setInputText("");
+
+        const optimisticMessage: Message = {
+            id: `local-${Date.now()}`,
+            sender: "me",
+            text: trimmed,
+            timestamp: new Date().toISOString(),
+            type: "text",
+            isRead: true,
+        };
+
+        setConversations((prev) =>
+            prev.map((c) =>
+                c.id === activeConversation.id
+                    ? {
+                        ...c,
+                        messages: [...(c.messages || []), optimisticMessage],
+                        lastMessageAt: new Date().toISOString(),
+                    }
+                    : c
+            )
+        );
+
         try {
-            await sendMessageApi(activeConversation.id, inputText.trim());
-            setInputText("");
+            await sendMessageApi(activeConversation.id, trimmed);
         } catch {
-            // Handle error silently for now
+            // Roll back optimistic message if send fails.
+            setConversations((prev) =>
+                prev.map((c) =>
+                    c.id === activeConversation.id
+                        ? {
+                            ...c,
+                            messages: (c.messages || []).filter((m) => m.id !== optimisticMessage.id),
+                        }
+                        : c
+                )
+            );
         }
     };
 
     if (loading) return <div className="flex items-center justify-center h-[calc(100vh-80px)] text-gray-500">Loading messages...</div>;
-    if (error) return <div className="flex items-center justify-center h-[calc(100vh-80px)] text-red-500">Failed to load messages.</div>;
+    if (error) return <div className="flex items-center justify-center h-[calc(100vh-80px)] text-red-500">Failed to load messages. <button onClick={refetch} className="underline ml-2">Retry</button></div>;
     if (!activeConversation) return <div className="flex items-center justify-center h-[calc(100vh-80px)] text-gray-400">No conversations yet.</div>;
 
     return (
@@ -41,7 +125,7 @@ export default function MessagesPage() {
                 <ChatList
                     conversations={convoList}
                     activeId={effectiveActiveId}
-                    onSelect={setActiveId}
+                    onSelect={openConversation}
                 />
             </div>
 
@@ -54,7 +138,7 @@ export default function MessagesPage() {
                 />
 
                 {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-200">
+                <div ref={threadRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-200">
                     <SafetyWarning />
 
                     {activeConversation?.messages?.map(msg => (
@@ -86,11 +170,13 @@ export default function MessagesPage() {
                         <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100">
                             <Smile size={20} />
                         </button>
+                        <div className="hidden sm:block text-[10px] text-gray-400">Enter to send</div>
                         <button
                             onClick={handleSend}
-                            className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+                            disabled={!inputText.trim()}
+                            className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold rounded-md shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            <Send size={18} fill="white" className="translate-x-0.5" />
+                            <Send size={12} /> Send
                         </button>
                     </div>
                 </div>
