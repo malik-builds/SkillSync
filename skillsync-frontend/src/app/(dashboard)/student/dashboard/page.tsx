@@ -234,27 +234,38 @@ export default function StudentDashboard() {
                             <GlassCard className="p-6 border-none shadow-sm bg-white">
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
-                                    <Link href="#" className="text-sm font-bold text-blue-600 hover:underline">View All</Link>
                                 </div>
-                                <div className="space-y-6">
-                                    {[
-                                        { title: "Application Viewed", time: "2h ago", color: "bg-blue-500" },
-                                        { title: "New Skill Badge", time: "5h ago", color: "bg-purple-500" },
-                                        { title: "Profile Updated", time: "1d ago", color: "bg-green-500" },
-                                        { title: "Interview Scheduled", time: "2d ago", color: "bg-orange-500" },
-                                    ].map((activity, i) => (
-                                        <div key={i} className="flex gap-4 relative group">
-                                            {i !== 3 && <div className="absolute top-8 left-[11px] w-[2px] h-[calc(100%+8px)] bg-gray-100" />}
-                                            <div className={`w-[24px] h-[24px] rounded-full ${activity.color} bg-opacity-20 flex items-center justify-center shrink-0 mt-0.5`}>
-                                                <div className={`w-2.5 h-2.5 rounded-full ${activity.color}`} />
-                                            </div>
-                                            <div>
-                                                <p className="text-[15px] font-bold text-gray-900 group-hover:text-blue-600 transition-colors cursor-pointer">{activity.title}</p>
-                                                <p className="text-xs font-medium text-gray-500 mt-0.5">{activity.time}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                {(dashboard?.recentActivities ?? []).length === 0 ? (
+                                    <p className="text-sm text-gray-400 text-center py-4">No activity yet.</p>
+                                ) : (
+                                    <div className="space-y-5">
+                                        {(dashboard?.recentActivities ?? []).map((activity, i, arr) => {
+                                            const dotColor: Record<string, string> = {
+                                                blue: "bg-blue-500", purple: "bg-purple-500",
+                                                indigo: "bg-indigo-500", orange: "bg-orange-500",
+                                                emerald: "bg-emerald-500", green: "bg-green-500",
+                                                red: "bg-red-400", gray: "bg-gray-400",
+                                            };
+                                            const dot = dotColor[activity.color] ?? "bg-gray-400";
+                                            const isLast = i === arr.length - 1;
+                                            return (
+                                                <div key={i} className="flex gap-4 relative">
+                                                    {!isLast && <div className="absolute top-6 left-[11px] w-[2px] h-[calc(100%+4px)] bg-gray-100" />}
+                                                    <div className={`w-6 h-6 rounded-full ${dot} bg-opacity-20 flex items-center justify-center shrink-0 mt-0.5`}>
+                                                        <div className={`w-2.5 h-2.5 rounded-full ${dot}`} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold text-gray-900 truncate">{activity.title}</p>
+                                                        {activity.subtitle && (
+                                                            <p className="text-xs text-gray-500 truncate">{activity.subtitle}</p>
+                                                        )}
+                                                        <p className="text-xs font-medium text-gray-400 mt-0.5">{activity.time}</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </GlassCard>
                         </div>
                     </div>

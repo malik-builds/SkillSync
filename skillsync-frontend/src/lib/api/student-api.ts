@@ -28,6 +28,7 @@ export interface StudentDashboardData {
     criticalGapCount: number
   }
   skillGrowth: SkillGrowthPoint[]
+  recentActivities: { title: string; subtitle: string; color: string; time: string }[]
   recentApplications: any[]
   suggestedJobs: {
     id: string

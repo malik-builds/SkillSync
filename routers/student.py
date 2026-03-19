@@ -19,6 +19,30 @@ def ss(val): """Safe string"""; return val if val is not None else ""
 
 router = APIRouter()
 
+def format_time_ago(dt: datetime) -> str:
+    now = datetime.now()
+    diff = now - dt.replace(tzinfo=None) if dt.tzinfo else now - dt
+    secs = diff.total_seconds()
+    if secs < 3600:
+        m = max(int(secs // 60), 1)
+        return f"{m} min ago"
+    if secs < 86400:
+        return f"{int(secs // 3600)}h ago"
+    if secs < 604800:
+        d = int(secs // 86400)
+        return f"{d} day{'s' if d > 1 else ''} ago"
+    return dt.strftime("%b %d")
+
+STATUS_LABELS = {
+    "applied":     ("Applied",        "blue"),
+    "reviewing":   ("Application Reviewed", "purple"),
+    "shortlisted": ("Shortlisted",    "indigo"),
+    "interview":   ("Interview Scheduled", "orange"),
+    "offer":       ("Offer Received", "emerald"),
+    "hired":       ("Hired 🎉",       "green"),
+    "rejected":    ("Application Rejected", "red"),
+}
+
 def build_skill_growth(score: int, skill_count: int, created_at: str) -> list:
     today = datetime.now()
     try:
@@ -154,6 +178,53 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
             created_at=ss(student.created_at),
         )
 
+        # Build real activity feed
+        activities = []
+
+        # One entry per application (title + status)
+        for app in applications:
+            job = await Job.get(app.job_id)
+            company = ss(job.company) if job else "a company"
+            title = ss(job.title) if job else "a job"
+            label, color = STATUS_LABELS.get(ss(app.status), ("Applied", "blue"))
+            activities.append({
+                "title": f"{label}: {title}",
+                "subtitle": company,
+                "color": color,
+                "ts": app.applied_at.timestamp() if app.applied_at else 0,
+                "time": format_time_ago(app.applied_at) if app.applied_at else "",
+            })
+
+        # CV analyzed event
+        if student.extracted_data:
+            try:
+                joined_dt = datetime.fromisoformat(ss(student.created_at).replace("Z", "").split("+")[0])
+            except Exception:
+                joined_dt = datetime.now()
+            activities.append({
+                "title": "CV Analyzed",
+                "subtitle": f"{len(sl(student.skills))} skills extracted",
+                "color": "emerald",
+                "ts": joined_dt.timestamp(),
+                "time": format_time_ago(joined_dt),
+            })
+
+        # Profile created event
+        try:
+            joined_dt2 = datetime.fromisoformat(ss(student.created_at).replace("Z", "").split("+")[0])
+        except Exception:
+            joined_dt2 = datetime.now()
+        activities.append({
+            "title": "Joined SkillSync",
+            "subtitle": "Profile created",
+            "color": "gray",
+            "ts": joined_dt2.timestamp() - 1,  # slightly before CV event
+            "time": format_time_ago(joined_dt2),
+        })
+
+        activities.sort(key=lambda a: a["ts"], reverse=True)
+        recent_activities = [{k: v for k, v in a.items() if k != "ts"} for a in activities[:8]]
+
         return {
             "kpis": {
                 "matchScore": sn(gap_score),
@@ -163,6 +234,7 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
                 "criticalGapCount": sn(critical_gap_count),
             },
             "skillGrowth": skill_growth,
+            "recentActivities": recent_activities,
             "recentApplications": recent_apps,
             "suggestedJobs": suggested_jobs
         }
