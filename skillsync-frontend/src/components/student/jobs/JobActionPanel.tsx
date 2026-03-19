@@ -4,17 +4,37 @@ import { JobMatchAndAnalysis } from "@/types/jobs";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CheckCircle2, AlertTriangle, Plus, Send, FileText, MessageCircle, ExternalLink } from "lucide-react";
 import { useState } from "react";
+import { applyToJob } from "@/lib/api/student-api";
 
 interface JobActionPanelProps {
     match: JobMatchAndAnalysis;
+    jobId: string;
 }
 
-export function JobActionPanel({ match }: JobActionPanelProps) {
+export function JobActionPanel({ match, jobId }: JobActionPanelProps) {
     const [addedGaps, setAddedGaps] = useState<string[]>([]);
+    const [isApplying, setIsApplying] = useState(false);
+    const [applySuccess, setApplySuccess] = useState(false);
 
     const handleAddGap = (gapId: string) => {
         setAddedGaps(prev => [...prev, gapId]);
         // Trigger toast in real app
+    };
+
+    const handleEasyApply = async () => {
+        setIsApplying(true);
+        try {
+            const response = await applyToJob(jobId);
+            if (response.success) {
+                setApplySuccess(true);
+                // Reset success message after 3 seconds
+                setTimeout(() => setApplySuccess(false), 3000);
+            }
+        } catch (error) {
+            console.error("Failed to apply to job:", error);
+        } finally {
+            setIsApplying(false);
+        }
     };
 
     const isHighMatch = match.matchScore >= 80;
@@ -91,10 +111,32 @@ export function JobActionPanel({ match }: JobActionPanelProps) {
             <GlassCard className="p-6 space-y-3 bg-white border border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-900 mb-2">Quick Actions</h3>
 
-                <button className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 group">
-                    <Send size={16} className="group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-transform" />
-                    Easy Apply
-                    <span className="text-xs font-normal opacity-90 bg-white/20 px-1.5 py-0.5 rounded">Verified</span>
+                <button 
+                    onClick={handleEasyApply}
+                    disabled={isApplying || applySuccess}
+                    className={`w-full py-3 rounded-xl text-white font-bold shadow-lg transition-all flex items-center justify-center gap-2 group ${
+                        applySuccess 
+                            ? "bg-green-600 shadow-green-500/20" 
+                            : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                    } ${isApplying || applySuccess ? "opacity-90" : ""}`}
+                >
+                    {isApplying ? (
+                        <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Applying...
+                        </>
+                    ) : applySuccess ? (
+                        <>
+                            <CheckCircle2 size={16} />
+                            Applied!
+                        </>
+                    ) : (
+                        <>
+                            <Send size={16} className="group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-transform" />
+                            Easy Apply
+                            <span className="text-xs font-normal opacity-90 bg-white/20 px-1.5 py-0.5 rounded">Verified</span>
+                        </>
+                    )}
                 </button>
 
                 <button className="w-full py-3 rounded-xl bg-white hover:bg-gray-50 text-gray-700 font-medium border border-gray-200 transition-colors flex items-center justify-center gap-2">
