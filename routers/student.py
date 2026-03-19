@@ -505,7 +505,7 @@ async def get_applications(status: Optional[str] = None, current_user: User = De
         query = {"student_email": current_user.email}
         if status:
             query["status"] = status
-            
+
         apps = await Application.find(query).to_list()
 
         # Deduplicate by canonical jobId (covers student/recruiter id variants for same posting).
@@ -516,10 +516,10 @@ async def get_applications(status: Optional[str] = None, current_user: User = De
             candidate = {
                 "id": str(app.id),
                 "jobId": canonical_id,
-                "role": job_info["title"],
+                "jobTitle": job_info["title"],
                 "company": job_info["company"],
-                "stage": app.status,
-                "appliedDate": app.applied_at.isoformat(),
+                "status": app.status,
+                "appliedAt": app.applied_at.isoformat(),
                 "tags": app.tags,
                 "_rank": application_status_rank(app.status),
                 "_appliedAt": app.applied_at,
@@ -538,25 +538,25 @@ async def get_applications(status: Optional[str] = None, current_user: User = De
         stats = {"total": 0, "active": 0, "interviews": 0, "offers": 0, "rejected": 0}
         for item in deduped.values():
             stats["total"] += 1
-            if item["stage"] in ["applied", "reviewing", "interview", "shortlisted"]:
+            if item["status"] in ["applied", "reviewing", "shortlisted", "interview"]:
                 stats["active"] += 1
-            if item["stage"] == "interview":
+            if item["status"] == "interview":
                 stats["interviews"] += 1
-            if item["stage"] == "offer":
+            if item["status"] in ["offer", "hired"]:
                 stats["offers"] += 1
-            if item["stage"] == "rejected":
+            if item["status"] == "rejected":
                 stats["rejected"] += 1
 
             formatted.append({
                 "id": item["id"],
                 "jobId": item["jobId"],
-                "role": item["role"],
+                "jobTitle": item["jobTitle"],
                 "company": item["company"],
-                "stage": item["stage"],
-                "appliedDate": item["appliedDate"],
+                "status": item["status"],
+                "appliedAt": item["appliedAt"],
                 "tags": item["tags"],
             })
-            
+
         return {
             "applications": formatted,
             "stats": stats
