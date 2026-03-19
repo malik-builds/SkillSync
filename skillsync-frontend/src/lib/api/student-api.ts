@@ -13,6 +13,12 @@ import { CVProfile, CVAnalysis } from '@/types/cv'
 
 // ── Dashboard ──────────────────────────────────────────────
 
+export interface SkillGrowthPoint {
+  date: string
+  score: number
+  skills: number
+}
+
 export interface StudentDashboardData {
   kpis: {
     matchScore: number
@@ -21,6 +27,7 @@ export interface StudentDashboardData {
     profileStrength: number
     criticalGapCount: number
   }
+  skillGrowth: SkillGrowthPoint[]
   recentApplications: any[]
   suggestedJobs: {
     id: string
