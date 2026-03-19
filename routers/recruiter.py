@@ -1006,6 +1006,145 @@ async def update_settings(data: dict = Body(...), current_user: User = Depends(r
     except Exception as e:
         raise HTTPException(500, "Internal error")
 
+# ─── Settings aliases expected by frontend ────────────────────────────────────
+
+@router.get("/settings/account")
+async def get_settings_account(current_user: User = Depends(require_recruiter)):
+    """Alias for GET /recruiter/settings — frontend calls /settings/account."""
+    return await get_settings(current_user)
+
+@router.put("/settings/account")
+async def update_settings_account(data: dict = Body(...), current_user: User = Depends(require_recruiter)):
+    """Alias for PUT /recruiter/settings — frontend calls /settings/account."""
+    return await update_settings(data, current_user)
+
+@router.get("/settings/notifications")
+async def get_notification_settings(current_user: User = Depends(require_recruiter)):
+    try:
+        profile = await get_recruiter_profile(current_user)
+        return profile.notification_settings or {
+            "newApplications": True,
+            "messages": True,
+            "weeklyReport": False,
+        }
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.put("/settings/notifications")
+async def update_notification_settings(data: dict = Body(...), current_user: User = Depends(require_recruiter)):
+    try:
+        profile = await get_recruiter_profile(current_user)
+        profile.notification_settings = data
+        await profile.save()
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/settings/team")
+async def get_team(current_user: User = Depends(require_recruiter)):
+    """Stub — team management not yet implemented."""
+    return {"members": [], "invites": []}
+
+@router.post("/settings/team/invite")
+async def invite_team_member(data: dict = Body(...), current_user: User = Depends(require_recruiter)):
+    """Stub — team invite not yet implemented."""
+    return {"success": True}
+
+@router.delete("/settings/team/{member_id}")
+async def remove_team_member(member_id: str, current_user: User = Depends(require_recruiter)):
+    """Stub — team member removal not yet implemented."""
+    return {"success": True}
+
+@router.delete("/settings/team/invites/{invite_id}")
+async def revoke_team_invite(invite_id: str, current_user: User = Depends(require_recruiter)):
+    """Stub — invite revocation not yet implemented."""
+    return {"success": True}
+
+@router.get("/settings/plans")
+async def get_plans(current_user: User = Depends(require_recruiter)):
+    """Stub — billing plans not yet implemented."""
+    return [{"id": "free", "name": "Free", "price": 0, "current": True}]
+
+@router.post("/settings/change-password")
+async def change_password(data: dict = Body(...), current_user: User = Depends(require_recruiter)):
+    from auth.utils import verify_password, hash_password
+    try:
+        current = data.get("currentPassword")
+        new_pwd = data.get("newPassword")
+        if not verify_password(current, current_user.hashed_password):
+            raise HTTPException(401, "Invalid current password")
+        current_user.hashed_password = hash_password(new_pwd)
+        await current_user.save()
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+# ─── Dashboard sub-endpoints ──────────────────────────────────────────────────
+
+@router.get("/dashboard/stats")
+async def get_dashboard_stats(current_user: User = Depends(require_recruiter)):
+    """Returns only the stats portion of the recruiter dashboard."""
+    try:
+        profile = await get_recruiter_profile(current_user)
+        jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
+        active_jobs = [j for j in jobs if j.status == "active"]
+        job_ids = [str(j.id) for j in jobs]
+        apps = await Application.find({"job_id": {"$in": job_ids}}).to_list()
+        new_apps = [a for a in apps if a.status == "applied"]
+        interviews = sum(1 for a in apps if a.status == "interview")
+        hires = sum(1 for a in apps if a.status == "hired")
+        return {
+            "recruiterName": current_user.name or "Recruiter",
+            "activeJobs": len(active_jobs),
+            "totalCandidates": len(apps),
+            "newApplicants": len(new_apps),
+            "totalApplicants": len(apps),
+            "interviews": interviews,
+            "hires": hires,
+            "avgTimeToHire": 14,
+            "offerAcceptRate": 80,
+            "companyName": profile.company_name,
+        }
+    except Exception as e:
+        print(f"[ERROR dashboard stats]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/dashboard/schedule")
+async def get_schedule(current_user: User = Depends(require_recruiter)):
+    """Returns upcoming interview schedule. Currently returns live interview-stage applications."""
+    try:
+        jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
+        job_ids = [str(j.id) for j in jobs]
+        job_map = {str(j.id): j for j in jobs}
+        apps = await Application.find({"job_id": {"$in": job_ids}, "status": "interview"}).to_list()
+        schedule = []
+        for app in apps[:10]:
+            student = await Student.find_one(Student.email == app.student_email)
+            job = job_map.get(app.job_id)
+            name = student.name if student else app.student_email
+            schedule.append({
+                "id": str(app.id),
+                "candidateName": name,
+                "candidateInitials": initials(name),
+                "role": job.title if job else "Unknown Role",
+                "type": "Interview",
+                "date": None,
+                "time": None,
+            })
+        return schedule
+    except Exception as e:
+        print(f"[ERROR schedule]: {e}")
+        raise HTTPException(500, "Internal error")
+
+# ─── Company logo upload stub ──────────────────────────────────────────────────
+
+@router.post("/company/logo")
+async def upload_company_logo(current_user: User = Depends(require_recruiter)):
+    """Stub — logo upload not yet implemented server-side."""
+    return {"logoUrl": None, "message": "Logo upload coming soon."}
+
 # ─── Company Profile ──────────────────────────────────────────────────────────
 
 @router.get("/company")

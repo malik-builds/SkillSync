@@ -530,3 +530,274 @@ async def update_settings(data: dict = Body(...), current_user: User = Depends(r
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, "Internal error")
+
+# ─── Settings aliases expected by frontend ────────────────────────────────────
+
+@router.get("/settings/account")
+async def get_settings_account(current_user: User = Depends(require_university)):
+    """Alias — frontend calls /settings/account instead of /settings."""
+    return await get_settings(current_user)
+
+@router.put("/settings/account")
+async def update_settings_account(data: dict = Body(...), current_user: User = Depends(require_university)):
+    """Alias — frontend calls /settings/account instead of /settings."""
+    return await update_settings(data, current_user)
+
+@router.get("/settings/notifications")
+async def get_notification_settings(current_user: User = Depends(require_university)):
+    try:
+        profile = await get_university_profile(current_user)
+        return profile.notification_settings or {
+            "placementAlerts": True,
+            "curriculumGaps": True,
+            "monthlyReport": True,
+        }
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.put("/settings/notifications")
+async def update_notification_settings(data: dict = Body(...), current_user: User = Depends(require_university)):
+    try:
+        profile = await get_university_profile(current_user)
+        profile.notification_settings = data
+        await profile.save()
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/settings/data")
+async def get_data_governance(current_user: User = Depends(require_university)):
+    """Stub — data governance settings not yet implemented."""
+    return {"dataRetention": "2years", "anonymisation": True, "exportEnabled": True}
+
+@router.put("/settings/data")
+async def update_data_governance(data: dict = Body(...), current_user: User = Depends(require_university)):
+    """Stub — data governance settings not yet implemented."""
+    return {"success": True}
+
+@router.get("/settings/team")
+async def get_team(current_user: User = Depends(require_university)):
+    """Stub — team management not yet implemented."""
+    return {"members": [], "invites": []}
+
+@router.post("/settings/team/invite")
+async def invite_team_member(data: dict = Body(...), current_user: User = Depends(require_university)):
+    """Stub — team invite not yet implemented."""
+    return {"success": True}
+
+@router.delete("/settings/team/{member_id}")
+async def remove_team_member(member_id: str, current_user: User = Depends(require_university)):
+    """Stub — team member removal not yet implemented."""
+    return {"success": True}
+
+@router.delete("/settings/team/invites/{invite_id}")
+async def revoke_team_invite(invite_id: str, current_user: User = Depends(require_university)):
+    """Stub — invite revocation not yet implemented."""
+    return {"success": True}
+
+@router.post("/settings/change-password")
+async def change_password(data: dict = Body(...), current_user: User = Depends(require_university)):
+    from auth.utils import verify_password, hash_password
+    try:
+        current = data.get("currentPassword")
+        new_pwd = data.get("newPassword")
+        if not verify_password(current, current_user.hashed_password):
+            raise HTTPException(401, "Invalid current password")
+        current_user.hashed_password = hash_password(new_pwd)
+        await current_user.save()
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+# ─── Dashboard sub-endpoints ──────────────────────────────────────────────────
+
+@router.get("/dashboard/stats")
+async def get_dashboard_stats(current_user: User = Depends(require_university)):
+    try:
+        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        total = analytics["totalStudents"] if analytics else 0
+        avg = analytics["avgScore"] if analytics else 0
+        placed = analytics["placedCount"] if analytics else 0
+        return {
+            "totalStudents": total,
+            "averageMatchScore": avg,
+            "placedStudents": placed,
+            "totalPartners": len(profile.partner_companies),
+            "recentJobMatches": 0,
+            "atRiskStudents": total - placed,
+            "institutionName": profile.institution_name,
+            "personalName": profile.personal_name or current_user.name or "Administrator",
+        }
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.put("/dashboard/alerts/{alert_id}/dismiss")
+async def dismiss_alert(alert_id: str, current_user: User = Depends(require_university)):
+    try:
+        profile = await get_university_profile(current_user)
+        if not profile.dismissed_alerts:
+            profile.dismissed_alerts = []
+        if alert_id not in profile.dismissed_alerts:
+            profile.dismissed_alerts.append(alert_id)
+            await profile.save()
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/dashboard/skill-gap-radar")
+async def get_skill_gap_radar(current_user: User = Depends(require_university)):
+    try:
+        analytics = await compute_university_analytics()
+        if not analytics:
+            return []
+        return make_radar_from_analytics(analytics)
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/dashboard/skill-bar")
+async def get_skill_bar(current_user: User = Depends(require_university)):
+    try:
+        analytics = await compute_university_analytics()
+        if not analytics:
+            return []
+        all_skills = analytics["skillsFreq"]
+        total = analytics["totalStudents"]
+        top_skills = sorted(all_skills.items(), key=lambda x: x[1], reverse=True)[:6]
+        return [
+            {"skill": sk.title(), "demand": 85, "coverage": min(100, int((cnt / total) * 100)), "gap": max(0, 85 - min(100, int((cnt / total) * 100)))}
+            for sk, cnt in top_skills
+        ]
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/dashboard/placement-summary")
+async def get_placement_summary(current_user: User = Depends(require_university)):
+    try:
+        analytics = await compute_university_analytics()
+        placed_pct = int(analytics["placementRate"]) if analytics else 0
+        return [
+            {"name": "Placement Ready", "value": placed_pct, "color": "#10B981"},
+            {"name": "Needs Work", "value": 100 - placed_pct, "color": "#E5E7EB"},
+        ]
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/dashboard/programme-placements")
+async def get_programme_placements(current_user: User = Depends(require_university)):
+    try:
+        analytics = await compute_university_analytics()
+        placed = analytics["placedCount"] if analytics else 0
+        total = analytics["totalStudents"] if analytics else 0
+        rate = analytics["placementRate"] if analytics else 0
+        return [{"programme": "All Programmes", "rate": int(rate), "total": total, "placed": placed}]
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/dashboard/top-employers")
+async def get_top_employers(current_user: User = Depends(require_university)):
+    try:
+        profile = await get_university_profile(current_user)
+        return [
+            {
+                "name": c["name"],
+                "hires": c.get("hiredStudents", 0),
+                "percentage": 0,
+                "topRole": "SE",
+                "avgSalary": "N/A",
+                "color": "#4F46E5",
+                "initials": c["name"][0],
+            }
+            for c in (profile.partner_companies or [])[:5]
+        ]
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/dashboard/interventions")
+async def get_interventions(current_user: User = Depends(require_university)):
+    try:
+        profile = await get_university_profile(current_user)
+        return profile.interventions or []
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.post("/dashboard/interventions")
+async def create_intervention(data: dict = Body(...), current_user: User = Depends(require_university)):
+    try:
+        import uuid
+        profile = await get_university_profile(current_user)
+        if not profile.interventions:
+            profile.interventions = []
+        intervention = {"id": str(uuid.uuid4()), **data}
+        profile.interventions.append(intervention)
+        await profile.save()
+        return intervention
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+# ─── Students sub-endpoints ───────────────────────────────────────────────────
+
+@router.get("/students/stats")
+async def get_student_stats(current_user: User = Depends(require_university)):
+    try:
+        analytics = await compute_university_analytics()
+        all_students = await Student.find_all().to_list()
+        return {
+            "totalStudents": analytics["totalStudents"] if analytics else 0,
+            "activeProfiles": len([s for s in all_students if s.extracted_data]),
+            "avgMatchScore": analytics["avgScore"] if analytics else 0,
+            "placedStudents": analytics["placedCount"] if analytics else 0,
+        }
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/students/programmes")
+async def get_programmes(current_user: User = Depends(require_university)):
+    try:
+        analytics = await compute_university_analytics()
+        total = analytics["totalStudents"] if analytics else 0
+        avg = analytics["avgScore"] if analytics else 0
+        return [{"id": "all", "name": "All Programmes", "studentCount": total, "avgScore": avg}]
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/students/score-distribution")
+async def get_score_distribution(programme: Optional[str] = None, current_user: User = Depends(require_university)):
+    try:
+        all_students = await Student.find_all().to_list()
+        buckets: dict = {"90-100": 0, "80-89": 0, "70-79": 0, "60-69": 0, "50-59": 0, "<50": 0}
+        for s in all_students:
+            ext = s.extracted_data or {}
+            score = (ext.get("gap_report") or {}).get("score", 0) or 0
+            if score >= 90: buckets["90-100"] += 1
+            elif score >= 80: buckets["80-89"] += 1
+            elif score >= 70: buckets["70-79"] += 1
+            elif score >= 60: buckets["60-69"] += 1
+            elif score >= 50: buckets["50-59"] += 1
+            else: buckets["<50"] += 1
+        return [{"range": k, "count": v} for k, v in buckets.items()]
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+@router.get("/students/missing-skills")
+async def get_missing_skills(current_user: User = Depends(require_university)):
+    try:
+        analytics = await compute_university_analytics()
+        if not analytics:
+            return []
+        missing_freq = analytics["missingFreq"]
+        return [
+            {"skill": k.title(), "count": v}
+            for k, v in sorted(missing_freq.items(), key=lambda x: x[1], reverse=True)[:8]
+        ]
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
+# ─── Partners contact stub ────────────────────────────────────────────────────
+
+@router.post("/partners/{partner_id}/contact")
+async def contact_partner(partner_id: str, data: dict = Body(...), current_user: User = Depends(require_university)):
+    """Stub — partner contact form not yet implemented."""
+    return {"success": True, "message": "Contact request recorded."}
