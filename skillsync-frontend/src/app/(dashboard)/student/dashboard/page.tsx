@@ -55,7 +55,7 @@ function NoCvCard() {
 
 export default function StudentDashboard() {
     const { user } = useAuth();
-    const { data: dashboard, loading } = useApi(() => getStudentDashboard(), []);
+    const { data: dashboard } = useApi(() => getStudentDashboard(), []);
 
     const hasCv = !!user?.onboarding?.cvUploaded;
 
@@ -108,16 +108,21 @@ export default function StudentDashboard() {
 
                             {/* Skill Gaps */}
                             {hasCv ? (
-                                <GlassCard className="p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300 border-none shadow-sm bg-white">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600">
-                                            <AlertCircle size={24} />
+                                <Link href="/student/analysis">
+                                    <GlassCard className="p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300 border-none shadow-sm bg-white cursor-pointer">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600">
+                                                <AlertCircle size={24} />
+                                            </div>
+                                            <span className="text-xs font-bold px-2 py-1 rounded-full bg-red-50 text-red-700">Critical</span>
                                         </div>
-                                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-red-50 text-red-700">Critical</span>
-                                    </div>
-                                    <h3 className="text-4xl font-bold text-gray-900 mb-1 tracking-tight">—</h3>
-                                    <p className="text-sm font-medium text-gray-500">Skills to Improve</p>
-                                </GlassCard>
+                                        <h3 className="text-4xl font-bold text-gray-900 mb-1 tracking-tight">
+                                            {dashboard?.kpis?.criticalGapCount ?? "—"}
+                                        </h3>
+                                        <p className="text-sm font-medium text-gray-500">Skills to Improve</p>
+                                        <p className="text-xs text-orange-500 font-semibold mt-1 group-hover:underline">View analysis →</p>
+                                    </GlassCard>
+                                </Link>
                             ) : (
                                 <NoCvStatCard icon={<AlertCircle size={22} />} label="Skills to Improve" />
                             )}

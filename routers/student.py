@@ -87,7 +87,9 @@ def calculate_profile_strength(student: Student) -> int:
 async def get_dashboard(current_user: User = Depends(get_current_user)):
     try:
         student = await get_student_doc(current_user)
-        gap_score = student.extracted_data.get("gap_report", {}).get("score", 0) if student.extracted_data else 0
+        gap_report = student.extracted_data.get("gap_report", {}) if student.extracted_data else {}
+        gap_score = gap_report.get("score", 0)
+        critical_gap_count = len(gap_report.get("missing_critical", []))
         applications = await Application.find(Application.student_email == student.email).to_list()
         
         interviews = [app for app in applications if app.status == "interview"]
@@ -126,6 +128,7 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
                 "appliedCount": sn(len(applications)),
                 "interviewCount": sn(len(interviews)),
                 "profileStrength": sn(calculate_profile_strength(student)),
+                "criticalGapCount": sn(critical_gap_count),
             },
             "recentApplications": recent_apps,
             "suggestedJobs": suggested_jobs

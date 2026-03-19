@@ -19,6 +19,7 @@ export interface StudentDashboardData {
     appliedCount: number
     interviewCount: number
     profileStrength: number
+    criticalGapCount: number
   }
   recentApplications: any[]
   suggestedJobs: {
