@@ -9,7 +9,9 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
-    const isMine = message.sender === 'user';
+    // Backend currently returns sender as "me" | "them" for student chats.
+    // Keep support for existing "user" | "recruiter" values as well.
+    const isMine = message.sender === 'me' || message.sender === 'user';
     const isSystem = message.sender === 'system' || message.type === 'system_event';
 
     const parseDate = (ts: any) => {

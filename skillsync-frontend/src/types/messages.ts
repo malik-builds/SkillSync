@@ -1,4 +1,4 @@
-export type SenderType = 'user' | 'recruiter' | 'system';
+export type SenderType = 'user' | 'recruiter' | 'system' | 'me' | 'them';
 export type MessageType = 'text' | 'system_event';
 
 export interface JobContext {

@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { RecruiterConversation, RecruiterMessage, RecruiterFilterTab } from "@/types/recruiter";
 import { useApi } from "@/lib/hooks/useApi";
-import { getRecruiterConversations, sendRecruiterMessage, createConversation as createConversationApi, archiveConversation, searchTalent } from "@/lib/api/recruiter-api";
+import { getRecruiterConversations, sendRecruiterMessage, createConversation as createConversationApi, archiveConversation, searchTalent, markRecruiterConversationRead } from "@/lib/api/recruiter-api";
 import { api } from "@/lib/api/client";
 
 // ─── Local type aliases ────────────────────────────────────────────────────────
@@ -325,10 +325,11 @@ export default function MessagesPage() {
         setConversations((prev) =>
             prev.map((c) =>
                 c.id === id
-                    ? { ...c, messages: c.messages.map((m) => ({ ...m, read: true })) }
+                    ? { ...c, messages: c.messages.map((m) => m.sender === "candidate" ? { ...m, read: true } : m) }
                     : c
             )
         );
+        void markRecruiterConversationRead(id);
     };
 
     // Send a message

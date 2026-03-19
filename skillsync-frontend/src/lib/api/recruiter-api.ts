@@ -201,6 +201,10 @@ export function sendRecruiterMessage(conversationId: string, text: string) {
   return api.post<{ success: boolean }>(`/recruiter/messages/${conversationId}`, { text })
 }
 
+export function markRecruiterConversationRead(conversationId: string) {
+  return api.patch<{ success: boolean }>(`/recruiter/messages/${conversationId}/read`)
+}
+
 export function archiveConversation(conversationId: string) {
   return api.patch<{ success: boolean }>(`/recruiter/messages/${conversationId}/archive`)
 }

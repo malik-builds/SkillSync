@@ -1137,3 +1137,26 @@ async def student_send_message(conv_id: str, data: dict = Body(...), current_use
         raise
     except Exception as e:
         raise HTTPException(500, "Internal error")
+
+@router.patch("/messages/{conv_id}/read")
+async def student_mark_conversation_read(conv_id: str, current_user: User = Depends(get_current_user)):
+    """Mark all incoming recruiter messages in a conversation as read for the student."""
+    try:
+        conv = await Conversation.get(conv_id)
+        if not conv or current_user.email not in conv.participants:
+            raise HTTPException(404, "Conversation not found")
+
+        changed = False
+        for m in conv.messages:
+            if m.senderId != current_user.email and not m.read:
+                m.read = True
+                changed = True
+
+        if changed:
+            await conv.save()
+
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, "Internal error")

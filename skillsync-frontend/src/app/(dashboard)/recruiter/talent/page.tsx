@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Candidate } from "@/types/recruiter";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useApi } from "@/lib/hooks/useApi";
 import { searchTalent, TalentSearchResponse, createConversation } from "@/lib/api/recruiter-api";
 import { Send } from "lucide-react";
 
