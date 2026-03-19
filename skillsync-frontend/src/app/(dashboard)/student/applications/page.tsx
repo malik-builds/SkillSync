@@ -13,12 +13,19 @@ export default function ApplicationsPage() {
     const { data, loading, error } = useApi(() => getApplications(), []);
 
     const applications = data?.applications ?? [];
+    const stats = data?.stats ?? {
+        total: applications.length,
+        active: applications.filter(app => ["Applied", "Screening", "Shortlisted", "Interview"].includes(app.status)).length,
+        interviews: applications.filter(app => app.status === "Interview").length,
+        offers: applications.filter(app => ["Offer", "Hired"].includes(app.status)).length,
+        rejected: applications.filter(app => app.status === "Rejected").length,
+    };
 
     const filteredApps = applications.filter(app => {
         if (activeTab === "All Applications") return true;
-        if (activeTab === "Active") return ["Applied", "Screening", "Interview"].includes(app.status);
+        if (activeTab === "Active") return ["Applied", "Screening", "Shortlisted", "Interview"].includes(app.status);
         if (activeTab === "Interview") return app.status === "Interview";
-        if (activeTab === "Archived") return ["Rejected", "Offer"].includes(app.status);
+        if (activeTab === "Archived") return ["Rejected", "Offer", "Hired"].includes(app.status);
         return true;
     });
 
@@ -32,7 +39,13 @@ export default function ApplicationsPage() {
                 </div>
 
                 {/* Stats */}
-                <ApplicationStats />
+                <ApplicationStats
+                    stats={{
+                        active: stats.active,
+                        interviews: stats.interviews,
+                        offers: stats.offers,
+                    }}
+                />
 
                 {/* Tabs */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar border-b border-gray-200">
@@ -55,6 +68,11 @@ export default function ApplicationsPage() {
                 <div className="space-y-6">
                     {loading && <div className="text-center py-12 text-gray-500">Loading applications...</div>}
                     {error && <div className="text-center py-12 text-red-500">Failed to load applications.</div>}
+                    {!loading && !error && filteredApps.length === 0 && (
+                        <div className="text-center py-12 text-gray-500">
+                            No applications found for this tab yet.
+                        </div>
+                    )}
                     {filteredApps.map(app => (
                         <ApplicationCard key={app.id} app={app} />
                     ))}

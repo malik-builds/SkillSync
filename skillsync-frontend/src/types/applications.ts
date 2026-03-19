@@ -15,6 +15,7 @@ export interface Application {
     location: string;
     appliedDate: string;
     status: ApplicationStatus;
+    tags?: string[];
     steps: ApplicationStep[];
     nextAction?: {
         type: 'interview' | 'offer' | 'feedback';

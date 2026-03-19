@@ -9,9 +9,14 @@ interface InterviewPrepModalProps {
     onClose: () => void;
     jobTitle: string;
     company: string;
+    tags: string[];
 }
 
-export function InterviewPrepModal({ isOpen, onClose, jobTitle, company }: InterviewPrepModalProps) {
+export function InterviewPrepModal({ isOpen, onClose, jobTitle, company, tags }: InterviewPrepModalProps) {
+    const keyRequirements = tags.length > 0
+        ? tags.slice(0, 4)
+        : ["Core role responsibilities", "Communication and collaboration"];
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -39,21 +44,19 @@ export function InterviewPrepModal({ isOpen, onClose, jobTitle, company }: Inter
                                     <div>
                                         <h4 className="text-sm font-bold text-blue-600 uppercase mb-2">Key Requirements</h4>
                                         <ul className="space-y-2">
-                                            <li className="flex items-start gap-2 text-sm text-gray-600">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5" />
-                                                Experience with React.js and modern frontend workflows.
-                                            </li>
-                                            <li className="flex items-start gap-2 text-sm text-gray-600">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5" />
-                                                Knowledge of restful APIs and state management (Redux/Zustand).
-                                            </li>
+                                            {keyRequirements.map((item) => (
+                                                <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5" />
+                                                    {item}
+                                                </li>
+                                            ))}
                                         </ul>
                                     </div>
 
                                     <div>
                                         <h4 className="text-sm font-bold text-purple-600 uppercase mb-2">Company Culture</h4>
                                         <p className="text-sm text-gray-600 leading-relaxed">
-                                            &quot;We value innovation, ownership, and a growth mindset. We look for engineers who are not afraid to challenge the status quo.&quot;
+                                            Use this prep to align your stories with {company}&apos;s expectations for the {jobTitle} role.
                                         </p>
                                     </div>
                                 </div>
@@ -76,8 +79,8 @@ export function InterviewPrepModal({ isOpen, onClose, jobTitle, company }: Inter
                                             <CheckCircle2 size={14} /> Talking Points (Strengths)
                                         </h4>
                                         <ul className="space-y-2">
-                                            <li className="text-sm text-gray-700">• Highlight your <span className="text-gray-900 font-bold">E-commerce Project</span> (React/Node).</li>
-                                            <li className="text-sm text-gray-700">• Mention your <span className="text-gray-900 font-bold">Verified React Skill</span> badge.</li>
+                                            <li className="text-sm text-gray-700">• Highlight one project relevant to the {jobTitle} role.</li>
+                                            <li className="text-sm text-gray-700">• Share a measurable outcome where your contribution made an impact.</li>
                                         </ul>
                                     </GlassCard>
 
@@ -86,8 +89,8 @@ export function InterviewPrepModal({ isOpen, onClose, jobTitle, company }: Inter
                                             <MessageCircle size={14} /> Questions to Ask
                                         </h4>
                                         <ul className="space-y-2">
-                                            <li className="text-sm text-gray-700">• &quot;How does the engineering team handle technical debt?&quot;</li>
-                                            <li className="text-sm text-gray-700">• &quot;What does the typical career path look like for this role?&quot;</li>
+                                            <li className="text-sm text-gray-700">• &quot;What does success look like in the first 90 days for this role?&quot;</li>
+                                            <li className="text-sm text-gray-700">• &quot;How does this team collaborate across functions?&quot;</li>
                                         </ul>
                                     </GlassCard>
                                 </div>

@@ -117,6 +117,7 @@ type BackendStudentApplication = {
   appliedAt?: string
   status?: string
   stage?: string
+  tags?: string[]
   matchScore?: number
 }
 
@@ -187,6 +188,7 @@ export function getApplications(status?: string) {
           location: app.location || 'Sri Lanka',
           appliedDate,
           status: normalizedStatus,
+          tags: app.tags || [],
           steps: buildPipelineSteps(normalizedStatus, appliedDate),
           matchScore: app.matchScore || 0,
         } as Application

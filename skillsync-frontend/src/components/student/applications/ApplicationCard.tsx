@@ -72,7 +72,9 @@ export function ApplicationCard({ app }: ApplicationCardProps) {
                                 </div>
                                 <div>
                                     <h4 className="text-sm font-bold text-gray-900 mb-0.5">Interview Scheduled</h4>
-                                    <p className="text-xs text-gray-500">{app.nextAction?.date} via Google Meet</p>
+                                    <p className="text-xs text-gray-500">
+                                        {app.nextAction?.date ? `Date: ${app.nextAction.date}` : "Interview details will appear here when shared."}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex gap-3 w-full md:w-auto">
@@ -82,9 +84,23 @@ export function ApplicationCard({ app }: ApplicationCardProps) {
                                 >
                                     <FileText size={16} /> Prep
                                 </button>
-                                <button className="flex-1 md:flex-none px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2">
-                                    Join Meeting
-                                </button>
+                                {app.nextAction?.link ? (
+                                    <a
+                                        href={app.nextAction.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex-1 md:flex-none px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        Join Meeting
+                                    </a>
+                                ) : (
+                                    <button
+                                        disabled
+                                        className="flex-1 md:flex-none px-4 py-2 rounded-lg bg-gray-300 text-sm font-bold text-white cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        Meeting Link Pending
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
@@ -93,7 +109,7 @@ export function ApplicationCard({ app }: ApplicationCardProps) {
                         <div className="flex items-center gap-3">
                             <Eye size={16} className="text-blue-500" />
                             <span className="text-sm text-gray-600">
-                                <span className="font-bold text-gray-900">Insight:</span> Your application was viewed by the recruiter 2 hours ago.
+                                <span className="font-bold text-gray-900">Status:</span> Your application has been submitted and is awaiting review.
                             </span>
                         </div>
                     )}
@@ -127,6 +143,7 @@ export function ApplicationCard({ app }: ApplicationCardProps) {
                 onClose={() => setIsPrepOpen(false)}
                 jobTitle={app.jobTitle}
                 company={app.company}
+                tags={app.tags || []}
             />
         </>
     );
