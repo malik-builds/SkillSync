@@ -150,15 +150,11 @@ export default function OnboardingPage() {
     // ============================================================
     const handleAnalyzeProfile = useCallback(async () => {
         if (!user) {
-            setAnalysisError("You must be signed in to analyze your profile.");
-            return;
-        }
-        if (!cvFile) {
-            setAnalysisError("Please go back and upload your CV first — it's required for analysis.");
+            setAnalysisError("You must be signed in.");
             return;
         }
         if (!selectedRole) {
-            setAnalysisError("Please select a target role before analyzing.");
+            setAnalysisError("Please select a target role before continuing.");
             return;
         }
 
@@ -166,13 +162,19 @@ export default function OnboardingPage() {
         setAnalysisError(null);
 
         try {
-            const result = await analyzeProfile(cvFile, githubUrlInput || undefined, selectedRole);
-            setAnalysisResult(result);
-            // Mark onboarding complete
+            if (cvFile) {
+                // Full analysis: CV + GitHub + target role
+                const result = await analyzeProfile(cvFile, githubUrlInput || undefined, selectedRole);
+                setAnalysisResult(result);
+            } else {
+                // No CV — just save the target role and finish onboarding.
+                // They can upload their CV later from the dashboard.
+                await setTargetRole(selectedRole);
+            }
             await finishOnboarding();
         } catch (e: any) {
-            console.error("Analysis failed", e);
-            const message = e?.error || e?.detail || e?.message || "Analysis failed. Please check your backend is running and try again.";
+            console.error("Onboarding failed", e);
+            const message = e?.error || e?.detail || e?.message || "Something went wrong. Please try again.";
             setAnalysisError(String(message));
         } finally {
             setIsAnalyzing(false);
@@ -457,6 +459,7 @@ export default function OnboardingPage() {
                                 selectedRole={selectedRole}
                                 onSelect={setSelectedRole}
                                 isAnalyzing={isAnalyzing}
+                                hasCv={!!cvFile}
                                 onAnalyze={handleAnalyzeProfile}
                                 onBack={goPrev}
                                 error={analysisError}
@@ -850,6 +853,7 @@ function TargetRoleStep({
     selectedRole,
     onSelect,
     isAnalyzing,
+    hasCv,
     onAnalyze,
     onBack,
     error,
@@ -857,6 +861,7 @@ function TargetRoleStep({
     selectedRole: string | null;
     onSelect: (role: string) => void;
     isAnalyzing: boolean;
+    hasCv: boolean;
     onAnalyze: () => void;
     onBack: () => void;
     error?: string | null;
@@ -959,12 +964,12 @@ function TargetRoleStep({
                         {isAnalyzing ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                Analyzing Profile...
+                                {hasCv ? "Analyzing Profile..." : "Saving..."}
                             </>
+                        ) : hasCv ? (
+                            <>Analyze Profile <CheckCircle2 size={18} /></>
                         ) : (
-                            <>
-                                Analyze Profile <CheckCircle2 size={18} />
-                            </>
+                            <>Continue to Dashboard <ArrowRight size={18} /></>
                         )}
                     </GlassButton>
                 </div>
