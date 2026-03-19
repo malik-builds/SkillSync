@@ -133,7 +133,7 @@ export default function OnboardingPage() {
         } finally {
             setIsFinishing(false);
         }
-    }, [refreshUser, router]);
+    }, [refreshUser]);
 
     // Skip to dashboard directly
     const skipToDashboard = useCallback(async () => {
