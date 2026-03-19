@@ -199,8 +199,13 @@ async def analyze_student_endpoint(
             student.extracted_data["gap_report"] = final_state.get("gap_report", {})
             student.ai_insights = final_state.get("gap_report", {})
             student.career_roadmap = final_state.get("market_requirements", {})
-            
+
             await student.save()
+
+        # Always persist the target role on the User document so onboarding.targetRoleSet is true
+        if target_job_title:
+            current_user.target_role = target_job_title
+            await current_user.save()
 
     # We return the items from the final state
     return {

@@ -33,6 +33,10 @@ async def get_user_response(user: User) -> UserOut:
         completed=user.onboarding_complete
     )
 
+    # Compute profile completion percentage from the three core steps
+    completed_steps = sum([cv_uploaded, github_connected, target_role_set])
+    profile_completion = round((completed_steps / 3) * 100)
+
     return UserOut(
         id=str(user.id),
         email=user.email,
@@ -41,6 +45,7 @@ async def get_user_response(user: User) -> UserOut:
         targetRole=getattr(user, "target_role", None) or None,
         linkedinId=None,
         onboarding=onboarding,
+        profileCompletion=profile_completion,
         cvFileName=cv_filename,
         cvId=cv_id,
         githubUsername=github_username

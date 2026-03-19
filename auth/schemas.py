@@ -26,6 +26,7 @@ class UserOut(BaseModel):
     targetRole: Optional[str] = None
     linkedinId: Optional[str] = None
     onboarding: OnboardingState
+    profileCompletion: int = 0
     cvFileName: Optional[str] = None
     cvId: Optional[str] = None
     githubUsername: Optional[str] = None

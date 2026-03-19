@@ -88,20 +88,21 @@ export default function OnboardingPage() {
     const [cvData, setCvData] = useState<CVUploadResponse | null>(null);
     const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
 
-    // Pre-populate from existing user data
+    // Pre-populate from existing user data; redirect if already onboarded
     useEffect(() => {
-        if (user) {
-            if (user.onboarding?.cvUploaded && user.cvFileName) {
-                // If they already did it, jump back maybe? For now mostly pristine.
-            }
-            if (user.githubUsername) {
-                setGithubUrlInput(`https://github.com/${user.githubUsername}`);
-            }
-            if (user.targetRole) {
-                setSelectedRole(user.targetRole);
-            }
+        if (!user) return;
+        // Already finished onboarding — skip straight to dashboard
+        if (user.onboarding?.completed) {
+            router.replace("/student/dashboard");
+            return;
         }
-    }, [user]);
+        if (user.githubUsername) {
+            setGithubUrlInput(`https://github.com/${user.githubUsername}`);
+        }
+        if (user.targetRole) {
+            setSelectedRole(user.targetRole);
+        }
+    }, [user, router]);
 
     // Navigation
     const goNext = useCallback(() => {
@@ -132,7 +133,7 @@ export default function OnboardingPage() {
         } finally {
             setIsFinishing(false);
         }
-    }, [refreshUser, router]);
+    }, [refreshUser]);
 
     // Skip to dashboard directly
     const skipToDashboard = useCallback(async () => {
