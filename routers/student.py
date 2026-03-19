@@ -931,72 +931,50 @@ async def update_learning_progress(path_id: str, node_id: str, data: dict = Body
         print(f"[ERROR]: {e}")
         raise HTTPException(500, "Internal error")
 
-# ─── Student Applications ──────────────────────────────────────────────────────
-
-@router.get("/applications")
-async def get_student_applications(current_user: User = Depends(get_current_user)):
-    try:
-        apps = await Application.find(Application.student_email == current_user.email).to_list()
-
-        # Deduplicate by canonical jobId to avoid duplicate cards for same job.
-        deduped: dict = {}
-        for app in apps:
-            job_info = await resolve_application_job(app.job_id)
-            canonical_id = job_info["jobId"]
-            candidate = {
-                "id": str(app.id),
-                "jobId": canonical_id,
-                "jobTitle": job_info["title"],
-                "company": job_info["company"],
-                "status": app.status,
-                "appliedAt": app.applied_at.isoformat(),
-                "tags": app.tags,
-                "_rank": application_status_rank(app.status),
-                "_appliedAt": app.applied_at,
-            }
-
-            existing = deduped.get(canonical_id)
-            if not existing:
-                deduped[canonical_id] = candidate
-            else:
-                if candidate["_rank"] > existing["_rank"] or (
-                    candidate["_rank"] == existing["_rank"] and candidate["_appliedAt"] > existing["_appliedAt"]
-                ):
-                    deduped[canonical_id] = candidate
-
-        result = [{
-            "id": item["id"],
-            "jobId": item["jobId"],
-            "jobTitle": item["jobTitle"],
-            "company": item["company"],
-            "status": item["status"],
-            "appliedAt": item["appliedAt"],
-            "tags": item["tags"],
-        } for item in deduped.values()]
-
-        return result
-    except Exception as e:
-        print(f"[ERROR student apps]: {e}")
-        raise HTTPException(500, "Internal error")
-
 @router.post("/applications")
-async def apply_to_job(data: dict = Body(...), current_user: User = Depends(get_current_user)):
-    """Student applies to a job."""
+async def apply_to_job_direct(data: dict = Body(...), current_user: User = Depends(get_current_user)):
+    """Student applies to a job by ID (student Job ID or RecruiterJob ID)."""
     try:
         job_id = data.get("jobId", "")
         if not job_id:
             raise HTTPException(400, "jobId is required")
-        # Check if already applied
-        existing = await Application.find_one({"student_email": current_user.email, "job_id": job_id})
+
+        # Resolve canonical job ID (same logic as /jobs/{id}/apply)
+        actual_job_id = job_id
+        student_job = None
+        try:
+            student_job = await Job.get(job_id)
+        except Exception:
+            student_job = None
+
+        if student_job:
+            if getattr(student_job, "recruiter_job_id", None):
+                actual_job_id = student_job.recruiter_job_id
+            elif getattr(student_job, "source", "").lower() == "internal":
+                recruiter_job = await RecruiterJob.find_one(
+                    RecruiterJob.title == student_job.title,
+                    RecruiterJob.location == student_job.location,
+                )
+                if recruiter_job:
+                    actual_job_id = str(recruiter_job.id)
+        else:
+            recruiter_job = None
+            try:
+                recruiter_job = await RecruiterJob.get(job_id)
+            except Exception:
+                recruiter_job = None
+            if not recruiter_job:
+                raise HTTPException(404, "Job not found")
+
+        existing = await Application.find_one({"student_email": current_user.email, "job_id": actual_job_id})
         if existing:
-            return {"success": False, "message": "Already applied", "applicationId": str(existing.id)}
-        job = await Job.get(job_id)
-        if not job:
-            raise HTTPException(404, "Job not found")
+            return {"success": True, "message": "Already applied", "applicationId": str(existing.id)}
+
+        student = await get_student_doc(current_user)
         app = Application(
             student_email=current_user.email,
-            student_id=str(current_user.id),
-            job_id=job_id,
+            student_id=str(student.id),
+            job_id=actual_job_id,
             status="applied",
         )
         await app.insert()
@@ -1004,7 +982,7 @@ async def apply_to_job(data: dict = Body(...), current_user: User = Depends(get_
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR apply]: {e}")
+        print(f"[ERROR apply direct]: {e}")
         raise HTTPException(500, "Internal error")
 
 # ─── Student Messaging ────────────────────────────────────────────────────────
