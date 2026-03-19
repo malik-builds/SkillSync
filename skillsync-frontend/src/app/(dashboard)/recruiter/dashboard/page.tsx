@@ -40,49 +40,44 @@ const PIPELINE_COLORS: Record<string, string> = {
     Rejected: "#F87171",
 };
 
-function HiringPipelineChart({ stats }: { stats?: Record<string, number> }) {
+function HiringPipelineChart({
+    stats,
+    pipeline,
+}: {
+    stats?: Record<string, number>;
+    pipeline?: Array<Record<string, string | number>>;
+}) {
     const allKeys = Object.keys(PIPELINE_COLORS) as (keyof typeof PIPELINE_COLORS)[];
     const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set(allKeys));
     const [mounted, setMounted] = useState(false);
 
-    // Use real stats if available, otherwise fallback to mock
+    // Build chart data only from API values; do not synthesize fake history.
     const pipelineData = useMemo(() => {
         if (!mounted) return [];
-        const now = new Date();
+        if (pipeline && pipeline.length > 0) {
+            return pipeline.map((point) => ({
+                date: String(point.date || ""),
+                Screening: Number(point.Screening || 0),
+                Qualified: Number(point.Qualified || 0),
+                Interviews: Number(point.Interviews || 0),
+                Offer: Number(point.Offer || 0),
+                Hired: Number(point.Hired || 0),
+                Rejected: Number(point.Rejected || 0),
+            }));
+        }
 
-        // If we have real stats, we mock a brief history ending in the real numbers
-        // since the backend only provides a snapshot for now.
-        return Array.from({ length: 15 }, (_, i) => {
-            const d = new Date(now);
-            d.setDate(now.getDate() - (14 - i));
-            const label = `${d.getDate()}/${d.getMonth() + 1}`;
+        if (!stats || Object.keys(stats).length === 0) return [];
 
-            // For the last day, use real stats if we have them
-            if (i === 14 && stats) {
-                return {
-                    date: label,
-                    Screening: stats.Screening || 0,
-                    Qualified: stats.Shortlisted || 0,
-                    Interviews: stats.Interview || 0,
-                    Offer: stats.Offer || 0,
-                    Hired: stats.Hired || 0,
-                    Rejected: stats.Rejected || 0
-                };
-            }
-
-            // Otherwise, generate mock historical data that looks somewhat realistic
-            const base = 5 + i;
-            return {
-                date: label,
-                Screening: Math.floor(base * 0.8),
-                Qualified: Math.floor(base * 0.6),
-                Interviews: Math.floor(base * 0.4),
-                Offer: Math.floor(base * 0.2),
-                Hired: Math.floor(base * 0.1),
-                Rejected: Math.floor(base * 0.1),
-            };
-        });
-    }, [mounted, stats]);
+        return [{
+            date: "Today",
+            Screening: stats.Screening || 0,
+            Qualified: stats.Qualified || stats.Shortlisted || 0,
+            Interviews: stats.Interviews || stats.Interview || 0,
+            Offer: stats.Offer || 0,
+            Hired: stats.Hired || 0,
+            Rejected: stats.Rejected || 0
+        }];
+    }, [mounted, pipeline, stats]);
 
     useEffect(() => {
         setMounted(true);
@@ -124,12 +119,28 @@ function HiringPipelineChart({ stats }: { stats?: Record<string, number> }) {
         );
     }
 
+    if (pipelineData.length === 0) {
+        return (
+            <div className="bg-white border border-gray-200 rounded-md shadow-sm p-5">
+                <div className="flex items-start justify-between mb-3">
+                    <div>
+                        <h2 className="text-sm font-semibold text-gray-900">Hiring Pipeline</h2>
+                        <p className="text-xs text-gray-400 mt-0.5">No pipeline data available yet</p>
+                    </div>
+                </div>
+                <div className="h-[190px] flex items-center justify-center text-gray-400 text-sm">
+                    No events to display
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white border border-gray-200 rounded-md shadow-sm p-5">
             <div className="flex items-start justify-between mb-3">
                 <div>
                     <h2 className="text-sm font-semibold text-gray-900">Hiring Pipeline</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">{totalEvents} total events &mdash; last 30 days</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{totalEvents} total events &mdash; last {pipelineData.length} {pipelineData.length === 1 ? "point" : "points"}</p>
                 </div>
                 <div className="flex flex-wrap gap-1.5 justify-end max-w-[66%]">
                     {allKeys.map((label) => {
@@ -154,7 +165,7 @@ function HiringPipelineChart({ stats }: { stats?: Record<string, number> }) {
                 </div>
             </div>
             <div className="h-[190px] overflow-x-auto">
-                <div style={{ minWidth: `${30 * 28}px`, height: "100%" }}>
+                <div style={{ minWidth: `${Math.max(320, pipelineData.length * 28)}px`, height: "100%" }}>
                     <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
                         <BarChart
                             data={pipelineData}
@@ -451,7 +462,7 @@ export default function RecruiterDashboard() {
                     </div>
 
                     {/* Hiring Pipeline Chart */}
-                    <HiringPipelineChart stats={dashboard?.pipelineStats} />
+                    <HiringPipelineChart stats={dashboard?.pipelineStats} pipeline={dashboard?.pipeline as Array<Record<string, string | number>> | undefined} />
 
                     {/* Active Job Postings Table */}
                     <div className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
