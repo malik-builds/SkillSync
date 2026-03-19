@@ -27,7 +27,7 @@ class RecruiterJob(Document):
     description: str = ""
     requirements: List[str] = []
     location: str = "Colombo, Sri Lanka"
-    work_type: str = "Office"   # Office, Remote, Hybrid
+    work_type: str = "OnSite"   # OnSite, Remote, Hybrid
     type: str = "Full-time"
     department: str = "Engineering"
     status: str = "active"      # active, closed, draft

@@ -31,8 +31,10 @@ function StatusBadge({ status }: { status: JobStatus }) {
 }
 
 function WorkTypeBadge({ type }: { type: Job["workType"] }) {
+    const label = type === "OnSite" ? "On Site" : type;
+
     return (
-        <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">{type}</span>
+        <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">{label}</span>
     );
 }
 

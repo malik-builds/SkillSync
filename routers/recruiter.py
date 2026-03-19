@@ -76,6 +76,17 @@ def map_stage_to_status(stage: str) -> str:
     }
     return mapping.get(stage, "applied")
 
+def normalize_work_type(value: Optional[str]) -> str:
+    """Normalize work type values to canonical API value: OnSite, Remote, Hybrid."""
+    raw = (value or "").strip().lower()
+    if raw in {"office", "on site", "onsite"}:
+        return "OnSite"
+    if raw == "remote":
+        return "Remote"
+    if raw == "hybrid":
+        return "Hybrid"
+    return "OnSite"
+
 async def format_application(app: Application, student: Optional[Student], job: Optional[RecruiterJob]) -> dict:
     """Format an application into the shape the frontend RecruiterApplication type expects."""
     name = student.name if student else app.student_email
@@ -145,7 +156,7 @@ async def format_job(j: RecruiterJob, profile: RecruiterProfile) -> dict:
         "title": j.title,
         "company": profile.company_name,
         "location": j.location,
-        "workType": j.work_type or "Office",
+        "workType": normalize_work_type(j.work_type),
         "salaryMin": j.salary_min or 80,
         "salaryMax": j.salary_max or 150,
         "postedDaysAgo": days_ago(j.created_at),
@@ -422,7 +433,7 @@ async def create_job(data: dict = Body(...), current_user: User = Depends(requir
             title=data.get("title", ""),
             description=data.get("description", ""),
             location=data.get("location", "Colombo, Sri Lanka"),
-            work_type=data.get("workType", "Office"),
+            work_type=normalize_work_type(data.get("workType", "OnSite")),
             type=data.get("type", "Full-time"),
             requirements=data.get("skills", data.get("requirements", [])),
             department=data.get("department", "Engineering"),
@@ -469,7 +480,7 @@ async def update_job(job_id: str, data: dict = Body(...), current_user: User = D
         if "skills" in data:
             j.requirements = data["skills"]
         if "workType" in data:
-            j.work_type = data["workType"]
+            j.work_type = normalize_work_type(data["workType"])
         if "salaryMin" in data:
             j.salary_min = data["salaryMin"]
         if "salaryMax" in data:

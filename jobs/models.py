@@ -11,7 +11,7 @@ class Job(Document):
     location: str = "Sri Lanka"
     salary_min: int = 0
     salary_max: int = 0
-    work_type: str = "Office"
+    work_type: str = "OnSite"
     type: str = "Full-time"
     deadline: str = ""
     department: str = "Engineering"

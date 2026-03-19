@@ -17,7 +17,7 @@ export function JobPostModal({ isOpen, onClose, onSuccess }: JobPostModalProps) 
         title: "",
         department: "Engineering",
         location: "Colombo, Sri Lanka",
-        workType: "Office" as const,
+        workType: "OnSite" as const,
         type: "Full-time" as const,
         salaryMin: 80,
         salaryMax: 150,
@@ -134,9 +134,9 @@ export function JobPostModal({ isOpen, onClose, onSuccess }: JobPostModalProps) 
                                 value={formData.workType}
                                 onChange={e => setFormData({ ...formData, workType: e.target.value as any })}
                             >
-                                <option>Office</option>
-                                <option>Remote</option>
-                                <option>Hybrid</option>
+                                <option value="OnSite">On Site</option>
+                                <option value="Remote">Remote</option>
+                                <option value="Hybrid">Hybrid</option>
                             </select>
                         </div>
                         <div className="space-y-1.5">

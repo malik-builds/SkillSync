@@ -1,6 +1,6 @@
 // ── Job types ──────────────────────────────────────────────
 export type JobStatus = "Active" | "Draft" | "Closed";
-export type WorkType = "Office" | "Remote" | "Hybrid";
+export type WorkType = "OnSite" | "Remote" | "Hybrid";
 
 export interface RecruiterJob {
   id: string;
@@ -85,7 +85,7 @@ export interface Candidate {
   graduatingYear: number;
   graduatingMonth: string;
   location: string;
-  availableFor: "Remote" | "Office" | "Any";
+  availableFor: "Remote" | "OnSite" | "Any";
   experience: "Fresh" | "<2yr" | "2-5yr" | "5+yr";
   skills: CandidateSkill[];
   github: { repos: number; commits6mo: number; active: boolean } | null;
