@@ -16,11 +16,12 @@ export function AnalysisTabs() {
     const [activeTab, setActiveTab] = useState("Overview");
     const [selectedJob, setSelectedJob] = useState<JobMatch | null>(null);
     const [addedGaps, setAddedGaps] = useState<Record<string, boolean>>({});
+    const [addedGapErrors, setAddedGapErrors] = useState<Record<string, string>>({});
 
     const { data: gapsData } = useApi<SkillGap[]>(() => getSkillGaps());
     const { data: jobsData } = useApi<JobMatch[]>(() => getJobMatches());
     const { data: overview } = useApi(() => getAnalysisOverview());
-    const { data: learningPathsData } = useApi(() => getLearningPaths());
+    const { data: learningPathsData, refetch: refetchLearningPaths } = useApi(() => getLearningPaths());
 
     const CRITICAL_GAPS = gapsData ?? [];
     const MATCHED_JOBS = jobsData ?? [];
@@ -36,9 +37,22 @@ export function AnalysisTabs() {
     );
 
     const handleAddGapToLearningPath = async (gap: SkillGap) => {
-        await addSkillToLearningPath(gap.name);
-        setAddedGaps((prev) => ({ ...prev, [gap.id || gap.name]: true }));
-        return true;
+        const gapKey = gap.id || gap.name;
+        try {
+            await addSkillToLearningPath(gap.name);
+            setAddedGaps((prev) => ({ ...prev, [gapKey]: true }));
+            setAddedGapErrors((prev) => {
+                const next = { ...prev };
+                delete next[gapKey];
+                return next;
+            });
+            await refetchLearningPaths();
+            return true;
+        } catch (e: any) {
+            const message = e?.error || e?.detail || e?.message || "Failed to add skill to learning path.";
+            setAddedGapErrors((prev) => ({ ...prev, [gapKey]: message }));
+            return false;
+        }
     };
 
     return (
@@ -105,6 +119,7 @@ export function AnalysisTabs() {
                                 gap={gap}
                                 onAdd={handleAddGapToLearningPath}
                                 initiallyAdded={!!addedGaps[gap.id || gap.name] || existingPathSkills.has((gap.name || "").toLowerCase().trim())}
+                                errorMessage={addedGapErrors[gap.id || gap.name]}
                             />
                         )) : (
                             <div className="md:col-span-2 text-center py-12 text-gray-400">

@@ -1,9 +1,9 @@
 import { StudentProfile } from "@/types/profile";
 import { SkillBadge } from "./SkillBadge";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { addManualSkill, verifyGithubProfile } from "@/lib/api/student-api";
+import { addManualSkill, removeProfileSkill, verifyGithubProfile } from "@/lib/api/student-api";
 import { CheckCircle2, User } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface SkillsTabProps {
     profile: StudentProfile;
@@ -11,14 +11,20 @@ interface SkillsTabProps {
 }
 
 export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
-    const verifiedSkills = (profile.skills || []).filter((s) => s.verified);
-    const manualSkills = (profile.skills || []).filter((s) => !s.verified);
+    const [skills, setSkills] = useState(profile.skills || []);
+    const verifiedSkills = (skills || []).filter((s) => s.verified);
+    const manualSkills = (skills || []).filter((s) => !s.verified);
     const [verifying, setVerifying] = useState(false);
     const [verifyMessage, setVerifyMessage] = useState("");
     const [verifyError, setVerifyError] = useState("");
     const [newSkill, setNewSkill] = useState("");
     const [addingSkill, setAddingSkill] = useState(false);
     const [addSkillError, setAddSkillError] = useState("");
+    const [removingSkillName, setRemovingSkillName] = useState("");
+
+    useEffect(() => {
+        setSkills(profile.skills || []);
+    }, [profile.skills]);
 
     const runGithubVerification = async () => {
         try {
@@ -26,7 +32,18 @@ export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
             setVerifyError("");
             setVerifyMessage("");
             const result = await verifyGithubProfile();
+            const verifiedSet = new Set((result.verifiedSkills || []).map((s) => String(s).trim().toLowerCase()));
+            setSkills((prev) => prev.map((skill) => {
+                const isVerified = verifiedSet.has(String(skill.name).trim().toLowerCase());
+                return {
+                    ...skill,
+                    verified: isVerified,
+                    source: isVerified ? "github" : skill.source,
+                    level: isVerified ? "Advanced" : skill.level,
+                };
+            }));
             setVerifyMessage(`GitHub verification complete. ${result.verifiedSkills.length} verified skill(s) found.`);
+            // Refetch profile from backend to ensure all verified skills are displayed
             onRefresh?.();
         } catch (e: any) {
             setVerifyError(e?.error || "GitHub verification failed.");
@@ -44,13 +61,34 @@ export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
         try {
             setAddingSkill(true);
             setAddSkillError("");
+            const exists = skills.some((s) => String(s.name).trim().toLowerCase() === skill.toLowerCase());
+            if (!exists) {
+                setSkills((current) => ([
+                    ...current,
+                    { name: skill, level: "Intermediate", source: "manual", verified: false },
+                ]));
+            }
             await addManualSkill(skill);
             setNewSkill("");
-            onRefresh?.();
         } catch (e: any) {
+            setSkills(profile.skills || []);
             setAddSkillError(e?.error || "Failed to add skill.");
         } finally {
             setAddingSkill(false);
+        }
+    };
+
+    const handleRemoveSkill = async (skillName: string) => {
+        try {
+            setRemovingSkillName(skillName);
+            setAddSkillError("");
+            setSkills((current) => current.filter((s) => String(s.name).trim().toLowerCase() !== skillName.toLowerCase()));
+            await removeProfileSkill(skillName);
+        } catch (e: any) {
+            setSkills(profile.skills || []);
+            setAddSkillError(e?.error || "Failed to remove skill.");
+        } finally {
+            setRemovingSkillName("");
         }
     };
 
@@ -69,7 +107,12 @@ export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {verifiedSkills.map((skill, i) => (
-                        <SkillBadge key={`v-${skill.name}-${i}`} skill={skill} />
+                        <SkillBadge
+                            key={`v-${skill.name}-${i}`}
+                            skill={skill}
+                            onRemove={() => void handleRemoveSkill(skill.name)}
+                            removing={removingSkillName === skill.name}
+                        />
                     ))}
                 </div>
             </section>
@@ -87,7 +130,12 @@ export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {manualSkills.map((skill, i) => (
-                        <SkillBadge key={`m-${skill.name}-${i}`} skill={skill} />
+                        <SkillBadge
+                            key={`m-${skill.name}-${i}`}
+                            skill={skill}
+                            onRemove={() => void handleRemoveSkill(skill.name)}
+                            removing={removingSkillName === skill.name}
+                        />
                     ))}
                 </div>
                 <div className="mt-3 flex flex-col sm:flex-row gap-2 items-start sm:items-center">

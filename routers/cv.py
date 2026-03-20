@@ -75,11 +75,16 @@ async def upload_cv(
     if not student:
         student = Student(email=current_user.email)
 
-    student.skills = extracted.get("skills", [])
-    student.extracted_data = extracted
-    student.extracted_data["gap_report"] = gap_report
-    student.extracted_data["market_requirements"] = market_reqs
-    student.extracted_data["cv_filename"] = cv.filename
+    merged_skills = services.merge_skills_preserving_existing(student.skills, extracted.get("skills", []))
+    student.skills = merged_skills
+    existing_extracted = student.extracted_data or {}
+    merged_extracted = dict(existing_extracted)
+    merged_extracted.update(extracted)
+    merged_extracted["skills"] = merged_skills
+    merged_extracted["gap_report"] = gap_report
+    merged_extracted["market_requirements"] = market_reqs
+    merged_extracted["cv_filename"] = cv.filename
+    student.extracted_data = merged_extracted
     
     if github_url:
         student.github_url = github_url

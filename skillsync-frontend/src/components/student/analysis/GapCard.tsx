@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SkillGap } from "@/types/analysis";
 import { ArrowUpRight, Plus, Check } from "lucide-react";
 
@@ -8,11 +8,16 @@ interface GapCardProps {
     gap: SkillGap;
     onAdd?: (gap: SkillGap) => Promise<boolean | void>;
     initiallyAdded?: boolean;
+    errorMessage?: string;
 }
 
-export function GapCard({ gap, onAdd, initiallyAdded = false }: GapCardProps) {
+export function GapCard({ gap, onAdd, initiallyAdded = false, errorMessage }: GapCardProps) {
     const [isAdded, setIsAdded] = useState(initiallyAdded);
     const [isAdding, setIsAdding] = useState(false);
+
+    useEffect(() => {
+        setIsAdded(initiallyAdded);
+    }, [initiallyAdded]);
 
     const handleAddToPath = async () => {
         if (isAdded || isAdding) return;
@@ -76,6 +81,10 @@ export function GapCard({ gap, onAdd, initiallyAdded = false }: GapCardProps) {
                     </>
                 )}
             </button>
+
+            {errorMessage && (
+                <p className="mt-2 text-xs text-red-600">{errorMessage}</p>
+            )}
         </div>
     );
 }

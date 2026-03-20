@@ -15,6 +15,7 @@ export default function LearningPathPage() {
     const [activePathId, setActivePathId] = useState<string>("");
     const [updatingNodeId, setUpdatingNodeId] = useState<string | null>(null);
     const [removingPathId, setRemovingPathId] = useState<string | null>(null);
+    const [removeError, setRemoveError] = useState<string | null>(null);
 
     const isInitialLoading = loading && paths.length === 0;
 
@@ -90,10 +91,13 @@ export default function LearningPathPage() {
 
     const handleRemoveCompletedPath = async (pathId: string) => {
         try {
+            setRemoveError(null);
             setRemovingPathId(pathId);
             await removeLearningPath(pathId);
             setPaths((prev) => prev.filter((p) => p.id !== pathId));
             void refetch();
+        } catch (e: any) {
+            setRemoveError(e?.error || e?.detail || e?.message || "Failed to remove learning path.");
         } finally {
             setRemovingPathId(null);
         }
@@ -120,6 +124,11 @@ export default function LearningPathPage() {
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Learning Action Plan</h1>
                     <p className="text-gray-500">Your personalized roadmap to become a {path.jobGoal || "professional"}. Complete each task to progress.</p>
+                    {removeError && (
+                        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                            {removeError}
+                        </div>
+                    )}
                     {path.progress === 100 && (
                         <div className="mt-3 flex items-center gap-3">
                             <span className="text-sm font-medium text-green-700">Completed</span>

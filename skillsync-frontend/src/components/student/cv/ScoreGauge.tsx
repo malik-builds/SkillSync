@@ -12,7 +12,7 @@ export function ScoreGauge({ score }: ScoreGaugeProps) {
     const label = score >= 80 ? "Excellent" : score >= 50 ? "Good" : "Needs Work";
 
     // SVG parameters
-    const radius = 50;
+    const radius = 65;
     const stroke = 8;
     const normalizedRadius = radius - stroke * 2;
     const circumference = normalizedRadius * 2 * Math.PI;
@@ -20,7 +20,7 @@ export function ScoreGauge({ score }: ScoreGaugeProps) {
 
     return (
         <div className="flex flex-col items-center justify-center">
-            <div className="relative w-32 h-32 flex items-center justify-center">
+            <div className="relative w-36 h-36 flex items-center justify-center">
                 <svg
                     height={radius * 2}
                     width={radius * 2}

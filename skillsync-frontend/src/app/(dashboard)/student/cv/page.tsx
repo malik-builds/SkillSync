@@ -8,6 +8,7 @@ import { CVAnalysisDashboard } from "@/components/student/cv/CVAnalysisDashboard
 import { CVBuilder } from "@/components/student/cv/CVBuilder";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { analyzeProfile } from "@/lib/api/auth-api";
+import { getAnalysisOverview, getCVProfile } from "@/lib/api/student-api";
 import type { AnalysisResponse } from "@/types/user";
 
 // Reusable analyzing overlay (same style as onboarding)
@@ -72,10 +73,72 @@ export default function CVPage() {
     const [mode, setMode] = useState<"auditor" | "architect">("auditor");
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isLoadingStoredStats, setIsLoadingStoredStats] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
+    const [forceUploader, setForceUploader] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    useEffect(() => {
+        const loadStoredCvStats = async () => {
+            if (
+                mode !== "auditor" ||
+                !user?.onboarding?.cvUploaded ||
+                analysisResult ||
+                uploadedFile ||
+                forceUploader
+            ) {
+                return;
+            }
+
+            setIsLoadingStoredStats(true);
+            try {
+                const [overview, profile] = await Promise.all([
+                    getAnalysisOverview(),
+                    getCVProfile(),
+                ]);
+
+                const skillNames = (profile.skills || []).flatMap((group) => group.items || []);
+                const missingCritical = (overview as any)?.missingCritical || [];
+                const recommendations = ((overview.recommendations || []) as any[])
+                    .map((r) => (typeof r?.title === "string" ? r.title : ""))
+                    .filter(Boolean);
+
+                setAnalysisResult({
+                    extracted_data: {
+                        skills: skillNames,
+                        experience: [],
+                        education_history: (profile.education || []).map((e: any) => ({
+                            degree: e?.degree || "",
+                            institution: e?.institution || "",
+                        })),
+                        name: profile.fullName || user.fullName,
+                    },
+                    market_requirements: {
+                        must_have: [],
+                        nice_to_have: [],
+                    },
+                    gap_report: {
+                        score: overview.score || 0,
+                        status: overview.score >= 80 ? "strong" : overview.score >= 50 ? "good" : "needs_work",
+                        missing_critical: missingCritical,
+                        recommendations,
+                    },
+                    status: "completed",
+                });
+
+                setUploadedFile(new File([], user.cvFileName || "Uploaded CV.pdf", { type: "application/pdf" }));
+            } catch {
+                // If preloading fails, keep uploader available as fallback.
+            } finally {
+                setIsLoadingStoredStats(false);
+            }
+        };
+
+        loadStoredCvStats();
+    }, [mode, user, analysisResult, uploadedFile, forceUploader]);
+
     const handleUpload = async (file: File) => {
+        setForceUploader(false);
         setUploadedFile(file);
         setIsAnalyzing(true);
         setError(null);
@@ -96,6 +159,7 @@ export default function CVPage() {
     };
 
     const handleReset = () => {
+        setForceUploader(true);
         setUploadedFile(null);
         setAnalysisResult(null);
         setError(null);
@@ -142,6 +206,12 @@ export default function CVPage() {
 
             <div className="max-w-7xl mx-auto">
                 {mode === "auditor" ? (
+                    isLoadingStoredStats ? (
+                        <div className="flex flex-col items-center justify-center min-h-[50vh]">
+                            <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                            <p className="mt-4 text-sm font-medium text-gray-500">Loading your CV stats...</p>
+                        </div>
+                    ) :
                     analysisResult && uploadedFile ? (
                         <CVAnalysisDashboard
                             result={analysisResult}

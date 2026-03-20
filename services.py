@@ -18,6 +18,33 @@ def get_api_key(key_name):
         key = os.getenv(key_name)
     return key
 
+def merge_skills_preserving_existing(existing_skills, new_skills):
+    """Return a case-insensitive union while preserving existing skill order."""
+    merged = []
+    seen = set()
+
+    for raw in (existing_skills or []):
+        skill = str(raw).strip()
+        if not skill:
+            continue
+        key = skill.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(skill)
+
+    for raw in (new_skills or []):
+        skill = str(raw).strip()
+        if not skill:
+            continue
+        key = skill.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(skill)
+
+    return merged
+
 class ResumeParserTool:
     def __init__(self):
         # DeepSeek uses the OpenAI-compatible SDK

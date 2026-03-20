@@ -255,6 +255,10 @@ export function addManualSkill(name: string) {
   return api.post<StudentProfile>('/student/profile/skills', { name })
 }
 
+export function removeProfileSkill(name: string) {
+  return api.post<StudentProfile>('/student/profile/skills/remove', { name })
+}
+
 export function verifyGithubProfile() {
   return api.post<{ success: boolean; verifiedSkills: string[] }>('/student/profile/verify-github')
 }
@@ -276,11 +280,14 @@ export function getLearningPaths() {
 }
 
 export function getLearningPath(pathId: string) {
-  return api.get<LearningPath>(`/student/learning-paths/${pathId}`)
+  return api.get<LearningPath>(`/student/learning-paths/${encodeURIComponent(pathId)}`)
 }
 
 export function updateNodeProgress(pathId: string, nodeId: string, progress: number, completed?: boolean) {
-  return api.patch<{ success: boolean }>(`/student/learning-paths/${pathId}/nodes/${nodeId}`, { progress, completed })
+  return api.patch<{ success: boolean }>(
+    `/student/learning-paths/${encodeURIComponent(pathId)}/nodes/${encodeURIComponent(nodeId)}`,
+    { progress, completed }
+  )
 }
 
 export function addSkillToLearningPath(skill: string) {
@@ -288,7 +295,7 @@ export function addSkillToLearningPath(skill: string) {
 }
 
 export function removeLearningPath(pathId: string) {
-  return api.delete<{ success: boolean }>(`/student/learning-paths/${pathId}`)
+  return api.delete<{ success: boolean }>(`/student/learning-paths/${encodeURIComponent(pathId)}`)
 }
 
 // ── Analysis ───────────────────────────────────────────────
