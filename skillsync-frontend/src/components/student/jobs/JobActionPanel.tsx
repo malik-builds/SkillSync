@@ -3,18 +3,23 @@
 import { JobMatchAndAnalysis } from "@/types/jobs";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CheckCircle2, AlertTriangle, Plus, Send, FileText, MessageCircle, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { applyToJob } from "@/lib/api/student-api";
 
 interface JobActionPanelProps {
     match: JobMatchAndAnalysis;
     jobId: string;
+    initiallyApplied?: boolean;
 }
 
-export function JobActionPanel({ match, jobId }: JobActionPanelProps) {
+export function JobActionPanel({ match, jobId, initiallyApplied = false }: JobActionPanelProps) {
     const [addedGaps, setAddedGaps] = useState<string[]>([]);
     const [isApplying, setIsApplying] = useState(false);
-    const [applySuccess, setApplySuccess] = useState(false);
+    const [hasApplied, setHasApplied] = useState(initiallyApplied);
+
+    useEffect(() => {
+        setHasApplied(initiallyApplied);
+    }, [initiallyApplied]);
 
     const handleAddGap = (gapId: string) => {
         setAddedGaps(prev => [...prev, gapId]);
@@ -26,9 +31,7 @@ export function JobActionPanel({ match, jobId }: JobActionPanelProps) {
         try {
             const response = await applyToJob(jobId);
             if (response.success) {
-                setApplySuccess(true);
-                // Reset success message after 3 seconds
-                setTimeout(() => setApplySuccess(false), 3000);
+                setHasApplied(true);
             } else {
                 console.error("Application failed:", response);
             }
@@ -120,19 +123,19 @@ export function JobActionPanel({ match, jobId }: JobActionPanelProps) {
 
                 <button 
                     onClick={handleEasyApply}
-                    disabled={isApplying || applySuccess}
+                    disabled={isApplying || hasApplied}
                     className={`w-full py-3 rounded-xl text-white font-bold shadow-lg transition-all flex items-center justify-center gap-2 group ${
-                        applySuccess 
+                        hasApplied 
                             ? "bg-green-600 shadow-green-500/20" 
                             : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
-                    } ${isApplying || applySuccess ? "opacity-90" : ""}`}
+                    } ${isApplying || hasApplied ? "opacity-90" : ""}`}
                 >
                     {isApplying ? (
                         <>
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             Applying...
                         </>
-                    ) : applySuccess ? (
+                    ) : hasApplied ? (
                         <>
                             <CheckCircle2 size={16} />
                             Applied!

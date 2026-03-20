@@ -77,14 +77,14 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
 
                     {/* Right Column: Sticky Action Panel */}
                     <div className="hidden lg:block lg:col-span-4 sticky top-24">
-                        <JobActionPanel match={MATCH} jobId={id} />
+                        <JobActionPanel match={MATCH} jobId={id} initiallyApplied={Boolean(JOB.isApplied)} />
                     </div>
                 </div>
             </div>
 
             {/* Mobile Sticky Bar */}
             <div className="lg:hidden">
-                <MobileStickyBar jobId={id} />
+                <MobileStickyBar jobId={id} initiallyApplied={Boolean(JOB.isApplied)} />
             </div>
         </div>
     );

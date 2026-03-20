@@ -632,8 +632,20 @@ async def search_jobs(
 @router.get("/jobs/{job_id}")
 async def get_job_detail(job_id: str, current_user: User = Depends(get_current_user)):
     try:
+        student = await get_student_doc(current_user)
         job = await Job.get(job_id)
         if not job: raise HTTPException(404, "Job not found")
+
+        candidate_job_ids = {str(job.id)}
+        recruiter_job_id = getattr(job, "recruiter_job_id", None)
+        if recruiter_job_id:
+            candidate_job_ids.add(str(recruiter_job_id))
+
+        existing_app = await Application.find_one({
+            "student_email": student.email,
+            "job_id": {"$in": list(candidate_job_ids)},
+        })
+
         return {
             "id": str(job.id),
             "title": job.title,
@@ -646,7 +658,8 @@ async def get_job_detail(job_id: str, current_user: User = Depends(get_current_u
             "postedDate": job.created_at.isoformat(),
             "salary": None,
             "tags": job.required_skills[:3] if job.required_skills else [],
-            "category": getattr(job, "job_category", "Engineering")
+            "category": getattr(job, "job_category", "Engineering"),
+            "isApplied": existing_app is not None,
         }
     except HTTPException:
         raise

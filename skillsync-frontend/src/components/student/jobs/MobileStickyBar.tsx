@@ -1,24 +1,28 @@
 "use client";
 
 import { Send, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { applyToJob } from "@/lib/api/student-api";
 
 interface MobileStickyBarProps {
     jobId: string;
+    initiallyApplied?: boolean;
 }
 
-export function MobileStickyBar({ jobId }: MobileStickyBarProps) {
+export function MobileStickyBar({ jobId, initiallyApplied = false }: MobileStickyBarProps) {
     const [isApplying, setIsApplying] = useState(false);
-    const [applySuccess, setApplySuccess] = useState(false);
+    const [hasApplied, setHasApplied] = useState(initiallyApplied);
+
+    useEffect(() => {
+        setHasApplied(initiallyApplied);
+    }, [initiallyApplied]);
 
     const handleEasyApply = async () => {
         setIsApplying(true);
         try {
             const response = await applyToJob(jobId);
             if (response.success) {
-                setApplySuccess(true);
-                setTimeout(() => setApplySuccess(false), 3000);
+                setHasApplied(true);
             } else {
                 console.error("Application failed:", response);
             }
@@ -38,19 +42,19 @@ export function MobileStickyBar({ jobId }: MobileStickyBarProps) {
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t border-gray-200 lg:hidden z-50">
             <button 
                 onClick={handleEasyApply}
-                disabled={isApplying || applySuccess}
+                disabled={isApplying || hasApplied}
                 className={`w-full py-3.5 rounded-xl text-white font-bold shadow-lg flex items-center justify-center gap-2 transition-colors ${
-                    applySuccess 
+                    hasApplied 
                         ? "bg-green-600 shadow-green-500/20" 
                         : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
-                } ${isApplying || applySuccess ? "opacity-90" : ""}`}
+                } ${isApplying || hasApplied ? "opacity-90" : ""}`}
             >
                 {isApplying ? (
                     <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         Applying...
                     </>
-                ) : applySuccess ? (
+                ) : hasApplied ? (
                     <>
                         <CheckCircle2 size={18} />
                         Applied!

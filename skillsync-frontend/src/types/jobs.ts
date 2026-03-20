@@ -11,6 +11,7 @@ export interface JobPosting {
     responsibilities: string[];
     requirements: string[];
     benefits: string[];
+    isApplied?: boolean;
 }
 
 export interface JobMatchAndAnalysis {
