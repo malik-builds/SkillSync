@@ -395,6 +395,10 @@ export default function RecruiterDashboard() {
     const [eventForm, setEventForm] = useState({ title: "", time: "09:00", type: "zoom", detail: "" });
     const [isSavingEvent, setIsSavingEvent] = useState(false);
 
+    const totalApplicants = dashboard?.stats?.totalApplicants ?? 0;
+    const hires = dashboard?.stats?.hires ?? 0;
+    const hireRate = totalApplicants > 0 ? Math.round((hires / totalApplicants) * 100) : 0;
+
     const handleOpenAddEvent = (date: Date) => {
         setEventDate(date);
         setEventForm({ title: "", time: "09:00", type: "zoom", detail: "" });
@@ -460,7 +464,9 @@ export default function RecruiterDashboard() {
                                 <Briefcase size={14} className="text-blue-600" />
                             </div>
                             <p className="text-2xl font-bold text-gray-900">{dashboard?.stats?.activeJobs ?? 0}</p>
-                            <span className="text-[11px] font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">+1 this week</span>
+                            <span className="text-[11px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                {dashboard?.stats?.activeJobsThisWeek ?? 0} added this week
+                            </span>
                         </div>
 
                         {/* Total Candidates */}
@@ -470,7 +476,9 @@ export default function RecruiterDashboard() {
                                 <Users size={14} className="text-indigo-600" />
                             </div>
                             <p className="text-2xl font-bold text-gray-900">{dashboard?.stats?.totalCandidates ?? 0}</p>
-                            <span className="text-[11px] font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">+12 this week</span>
+                            <span className="text-[11px] font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                                {dashboard?.stats?.candidatesThisWeek ?? 0} this week
+                            </span>
                         </div>
 
                         {/* New Applications */}
@@ -480,7 +488,9 @@ export default function RecruiterDashboard() {
                                 <MailOpen size={14} className="text-amber-600" />
                             </div>
                             <p className="text-2xl font-bold text-gray-900">{dashboard?.stats?.newApplicants ?? 0}</p>
-                            <span className="text-[11px] font-medium text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">Needs review</span>
+                            <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                {dashboard?.stats?.newApplicants ?? 0} pending review
+                            </span>
                         </div>
 
                         {/* Conversion Rate */}
@@ -491,13 +501,13 @@ export default function RecruiterDashboard() {
                             </div>
                             <div className="space-y-1.5 mt-1">
                                 <div className="flex items-center justify-between text-xs">
-                                    <span className="text-gray-500">Views</span>
-                                    <span className="font-semibold text-gray-900">0</span>
+                                    <span className="text-gray-500">Applicants</span>
+                                    <span className="font-semibold text-gray-900">{totalApplicants}</span>
                                 </div>
                                 <div className="w-full h-px bg-gray-100" />
                                 <div className="flex items-center justify-between text-xs">
-                                    <span className="text-gray-500">Applied</span>
-                                    <span className="font-semibold text-gray-900">0</span>
+                                    <span className="text-gray-500">Hired ({hireRate}%)</span>
+                                    <span className="font-semibold text-gray-900">{hires}</span>
                                 </div>
                             </div>
                         </div>

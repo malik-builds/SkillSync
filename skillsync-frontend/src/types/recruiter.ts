@@ -242,6 +242,8 @@ export interface RecruiterDashboardStats {
   hires: number;
   avgTimeToHire: number;
   offerAcceptRate: number;
+  activeJobsThisWeek?: number;
+  candidatesThisWeek?: number;
 }
 
 export interface PipelineDataPoint {

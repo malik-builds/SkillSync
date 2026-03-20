@@ -79,6 +79,46 @@ def map_stage_to_status(stage: str) -> str:
     }
     return mapping.get(stage, "applied")
 
+def _as_naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if not dt:
+        return None
+    return dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+def build_dashboard_stats(current_user: User, profile: RecruiterProfile, jobs: List[RecruiterJob], apps: List[Application]) -> dict:
+    now = datetime.utcnow()
+    week_ago = now - timedelta(days=7)
+
+    active_jobs = [j for j in jobs if j.status == "active"]
+    new_apps = [a for a in apps if a.status == "applied"]
+    interviews = sum(1 for a in apps if a.status == "interview")
+    hires = sum(1 for a in apps if a.status == "hired")
+    offers_total = sum(1 for a in apps if a.status in {"offer", "hired"})
+
+    hired_apps = [a for a in apps if a.status == "hired" and a.applied_at]
+    if hired_apps:
+        avg_days = sum(max(0, (now - _as_naive_utc(a.applied_at)).days) for a in hired_apps) / len(hired_apps)
+        avg_time_to_hire = int(round(avg_days))
+    else:
+        avg_time_to_hire = 0
+
+    active_jobs_this_week = sum(1 for j in active_jobs if _as_naive_utc(getattr(j, "created_at", None)) and _as_naive_utc(j.created_at) >= week_ago)
+    candidates_this_week = sum(1 for a in apps if _as_naive_utc(a.applied_at) and _as_naive_utc(a.applied_at) >= week_ago)
+
+    return {
+        "recruiterName": current_user.name or "Recruiter",
+        "activeJobs": len(active_jobs),
+        "totalCandidates": len(apps),
+        "newApplicants": len(new_apps),
+        "totalApplicants": len(apps),
+        "interviews": interviews,
+        "hires": hires,
+        "avgTimeToHire": avg_time_to_hire,
+        "offerAcceptRate": round((hires / offers_total) * 100) if offers_total > 0 else 0,
+        "companyName": profile.company_name,
+        "activeJobsThisWeek": active_jobs_this_week,
+        "candidatesThisWeek": candidates_this_week,
+    }
+
 def normalize_work_type(value: Optional[str]) -> str:
     """Normalize work type values to canonical API value: OnSite, Remote, Hybrid."""
     raw = (value or "").strip().lower()
@@ -186,8 +226,6 @@ async def get_dashboard(current_user: User = Depends(require_recruiter)):
     try:
         profile = await get_recruiter_profile(current_user)
         jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
-        active_jobs = [j for j in jobs if j.status == "active"]
-
         job_ids = [str(j.id) for j in jobs]
         apps = await Application.find({"job_id": {"$in": job_ids}}).to_list()
 
@@ -235,18 +273,7 @@ async def get_dashboard(current_user: User = Depends(require_recruiter)):
             })
 
         return {
-            "stats": {
-                "recruiterName": current_user.name or "Recruiter",
-                "activeJobs": len(active_jobs),
-                "totalCandidates": len(apps),
-                "newApplicants": len(new_apps),
-                "totalApplicants": len(apps),
-                "interviews": pipeline["Interview"],
-                "hires": pipeline["Hired"],
-                "avgTimeToHire": 14,
-                "offerAcceptRate": 80,
-                "companyName": profile.company_name,
-            },
+            "stats": build_dashboard_stats(current_user, profile, jobs, apps),
             "pipelineStats": pipeline,
             "recentApplications": recent_apps,
             "activeJobRows": job_rows,
@@ -1367,24 +1394,9 @@ async def get_dashboard_stats(current_user: User = Depends(require_recruiter)):
     try:
         profile = await get_recruiter_profile(current_user)
         jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
-        active_jobs = [j for j in jobs if j.status == "active"]
         job_ids = [str(j.id) for j in jobs]
         apps = await Application.find({"job_id": {"$in": job_ids}}).to_list()
-        new_apps = [a for a in apps if a.status == "applied"]
-        interviews = sum(1 for a in apps if a.status == "interview")
-        hires = sum(1 for a in apps if a.status == "hired")
-        return {
-            "recruiterName": current_user.name or "Recruiter",
-            "activeJobs": len(active_jobs),
-            "totalCandidates": len(apps),
-            "newApplicants": len(new_apps),
-            "totalApplicants": len(apps),
-            "interviews": interviews,
-            "hires": hires,
-            "avgTimeToHire": 14,
-            "offerAcceptRate": 80,
-            "companyName": profile.company_name,
-        }
+        return build_dashboard_stats(current_user, profile, jobs, apps)
     except Exception as e:
         print(f"[ERROR dashboard stats]: {e}")
         raise HTTPException(500, "Internal error")
