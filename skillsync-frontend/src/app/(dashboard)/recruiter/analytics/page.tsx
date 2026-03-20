@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { DateRange } from "@/types/recruiter";
 import { useApi } from "@/lib/hooks/useApi";
-import { getRecruiterAnalytics, getAnalyticsTrends, getSourceBreakdown, getSkillDemand, getFunnel, getJobPerformance } from "@/lib/api/recruiter-api";
+import { getRecruiterAnalytics } from "@/lib/api/recruiter-api";
 
 const SOURCE_COLORS = ["#2563EB", "#4F46E5", "#7C3AED", "#A855F7", "#D1D5DB"];
 
@@ -27,7 +27,7 @@ function DarkTooltip({ active, payload, label }: { active?: boolean; payload?: {
                 <div key={entry.dataKey ?? entry.name} className="flex items-center justify-between gap-4 py-0.5">
                     <span className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: entry.color ?? entry.fill }} />
-                        <span className="text-gray-300 capitalize">{entry.dataKey ?? entry.name}:</span>
+                        <span className="text-gray-300 capitalize">{entry.dataKey === "apps" ? "Applications" : (entry.dataKey ?? entry.name)}:</span>
                     </span>
                     <span className="font-bold text-white">{entry.value}{entry.dataKey === "match" ? "%" : ""}</span>
                 </div>
@@ -98,21 +98,23 @@ export default function AnalyticsPage() {
     const [activeSourceIndex, setActiveSourceIndex] = useState(0);
 
     const { data: analytics, loading, error, refetch } = useApi(() => getRecruiterAnalytics(range), [range]);
-    const { data: trendDataMap } = useApi(() => getAnalyticsTrends(range), [range]);
-    const { data: SOURCE_DATA } = useApi(() => getSourceBreakdown(), []);
-    const { data: SKILL_DEMAND } = useApi(() => getSkillDemand(), []);
-    const { data: FUNNEL_DATA } = useApi(() => getFunnel(), []);
-    const { data: JOB_PERFORMANCE } = useApi(() => getJobPerformance(), []);
+    const trendData = analytics?.trends ?? [];
+    const funnelData = analytics?.funnel ?? [];
+    const sourceData = analytics?.sources ?? [];
+    const skillDemand = analytics?.skillDemand ?? [];
+    const jobPerformance = analytics?.jobPerformance ?? [];
 
-    const trendData = (trendDataMap as unknown as any[]) ?? [];
-    const funnelData = FUNNEL_DATA ?? [];
-    const sourceData = SOURCE_DATA ?? [];
-    const skillDemand = SKILL_DEMAND ?? [];
-    const jobPerformance = JOB_PERFORMANCE ?? [];
-
-    const overallConversion = funnelData.length > 0
-        ? ((funnelData[funnelData.length - 1].value / funnelData[0].value) * 100).toFixed(1)
+    const funnelStart = funnelData.length > 0 ? funnelData[0].value : 0;
+    const overallConversion = funnelData.length > 0 && funnelStart > 0
+        ? ((funnelData[funnelData.length - 1].value / funnelStart) * 100).toFixed(1)
         : "0";
+
+    const hasAnyAnalyticsData =
+        trendData.length > 0 ||
+        funnelData.length > 0 ||
+        sourceData.length > 0 ||
+        skillDemand.length > 0 ||
+        jobPerformance.length > 0;
 
     const handleExport = () => {
         const rows: any[][] = [];
@@ -195,6 +197,19 @@ export default function AnalyticsPage() {
 
     if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>;
     if (error) return <div className="text-center py-12 text-red-500">Failed to load analytics. <button onClick={refetch} className="underline">Retry</button></div>;
+    if (!hasAnyAnalyticsData) {
+        return (
+            <div className="space-y-5">
+                <div>
+                    <h1 className="text-xl font-bold text-gray-900">Analytics & Insights</h1>
+                    <p className="text-sm text-gray-500 mt-0.5">Recruiting performance at a glance</p>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-lg p-10 text-center text-sm text-gray-500">
+                    No hiring analytics data yet. Create jobs and receive applications to populate graphs.
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-5">
@@ -279,7 +294,7 @@ export default function AnalyticsPage() {
                 <Section title="Top Candidate Sources">
                     <div className="flex items-center gap-6">
                         <div className="flex-shrink-0">
-                            <PieChart width={180} height={180}>
+                                <PieChart width={180} height={180}>
                                 <Pie
                                     data={sourceData}
                                     cx={88}
@@ -287,8 +302,8 @@ export default function AnalyticsPage() {
                                     innerRadius={54}
                                     outerRadius={80}
                                     dataKey="value"
-                                    // @ts-expect-error recharts v3 supports activeIndex but types lag
-                                    activeIndex={activeSourceIndex}
+                                        // @ts-expect-error recharts v3 supports activeIndex but types lag
+                                        activeIndex={sourceData.length > 0 ? Math.min(activeSourceIndex, sourceData.length - 1) : undefined}
                                     activeShape={ActiveShape}
                                     onMouseEnter={(_, idx) => setActiveSourceIndex(idx)}
                                     strokeWidth={0}
@@ -396,7 +411,7 @@ export default function AnalyticsPage() {
                                     content={({ active, payload }) => {
                                         if (!active || !payload?.length) return null;
                                         const d = payload[0].payload;
-                                        const pct = ((d.value / funnelData[0].value) * 100).toFixed(0);
+                                        const pct = funnelStart > 0 ? ((d.value / funnelStart) * 100).toFixed(0) : "0";
                                         return (
                                             <div className="bg-gray-900 text-white rounded-lg px-3 py-2.5 shadow-xl text-[11px]">
                                                 <p className="font-bold text-white">{d.name}</p>
@@ -412,7 +427,7 @@ export default function AnalyticsPage() {
                                             const { value, x, y, width, height } = props as { value?: number; x?: number; y?: number; width?: number; height?: number };
                                             const item = funnelData.find((f) => f.value === value);
                                             if (!item) return null;
-                                            const pct = ((item.value / funnelData[0].value) * 100).toFixed(0);
+                                            const pct = funnelStart > 0 ? ((item.value / funnelStart) * 100).toFixed(0) : "0";
                                             return (
                                                 <text
                                                     x={Number(x) + Number(width) + 8}

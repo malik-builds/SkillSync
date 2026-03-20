@@ -751,7 +751,8 @@ async def apply_job(job_id: str, current_user: User = Depends(get_current_user))
             student_email=student.email,
             student_id=str(student.id),
             job_id=actual_job_id,
-            status="applied"
+            status="applied",
+            status_updated_at=datetime.now(),
         )
         await app.insert()
         return {"success": True}
@@ -1700,6 +1701,7 @@ async def apply_to_job_direct(data: dict = Body(...), current_user: User = Depen
             student_id=str(student.id),
             job_id=actual_job_id,
             status="applied",
+            status_updated_at=datetime.now(),
         )
         await app.insert()
         return {"success": True, "applicationId": str(app.id)}

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, 
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
+import math
 import uuid
 import base64
 from io import BytesIO
@@ -83,6 +84,21 @@ def _as_naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
     if not dt:
         return None
     return dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+async def build_recruiter_analytics_scope(recruiter_email: str):
+    """Return recruiter jobs, all linked application job IDs, and mapping to recruiter job IDs."""
+    jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == recruiter_email).to_list()
+    recruiter_job_ids = {str(j.id) for j in jobs}
+
+    app_job_to_recruiter_job = {jid: jid for jid in recruiter_job_ids}
+
+    mirrored_student_jobs = await Job.find({"recruiter_job_id": {"$in": list(recruiter_job_ids)}}).to_list()
+    for sj in mirrored_student_jobs:
+        if getattr(sj, "recruiter_job_id", None):
+            app_job_to_recruiter_job[str(sj.id)] = str(sj.recruiter_job_id)
+
+    linked_app_job_ids = set(app_job_to_recruiter_job.keys())
+    return jobs, linked_app_job_ids, app_job_to_recruiter_job
 
 def build_dashboard_stats(current_user: User, profile: RecruiterProfile, jobs: List[RecruiterJob], apps: List[Application]) -> dict:
     now = datetime.utcnow()
@@ -363,36 +379,61 @@ async def get_full_analytics(range: str = "30d", current_user: User = Depends(re
         funnel = await get_funnel(current_user)
         performance = await get_job_performance(current_user)
         
-        # Calculate summary stats
-        jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
-        job_ids = [str(j.id) for j in jobs]
-        apps = await Application.find({"job_id": {"$in": job_ids}}).to_list()
+        # Calculate summary stats (aligned to selected range)
+        jobs, linked_job_ids, app_job_to_recruiter_job = await build_recruiter_analytics_scope(current_user.email)
+        apps = await Application.find({"job_id": {"$in": list(linked_job_ids)}}).to_list()
+
+        range_days = {"7d": 7, "30d": 30, "90d": 90}.get(range, 30)
+        now = datetime.utcnow()
+        range_start = now - timedelta(days=range_days)
+
+        apps_in_range = [
+            a for a in apps
+            if a.applied_at and range_start <= _as_naive_utc(a.applied_at) <= now
+        ]
+
+        status_updates_in_range = [
+            a for a in apps
+            if (
+                _as_naive_utc(getattr(a, "status_updated_at", None))
+                or _as_naive_utc(a.applied_at)
+            ) and (
+                _as_naive_utc(getattr(a, "status_updated_at", None))
+                or _as_naive_utc(a.applied_at)
+            ) >= range_start
+        ]
         
-        total_apps = len(apps)
-        interviews = sum(1 for a in apps if a.status in ("interview", "offer", "hired"))
-        offers = sum(1 for a in apps if a.status in ("offer", "hired"))
-        hired = sum(1 for a in apps if a.status == "hired")
+        total_apps = len(apps_in_range)
+        interviews = sum(1 for a in status_updates_in_range if a.status in ("interview", "offer", "hired"))
+        offers = sum(1 for a in status_updates_in_range if a.status in ("offer", "hired"))
+        hired = sum(1 for a in status_updates_in_range if a.status == "hired")
         
         # Calculate avgMatchScore across all apps
         job_dict = {str(j.id): j for j in jobs}
         match_scores = []
-        for a in apps:
+        for a in apps_in_range:
             student = await Student.find_one(Student.email == a.student_email)
-            if student and str(a.job_id) in job_dict:
-                match_scores.append(await compute_match_score(student, job_dict[str(a.job_id)]))
+            recruiter_job_id = app_job_to_recruiter_job.get(str(a.job_id))
+            if student and recruiter_job_id and recruiter_job_id in job_dict:
+                match_scores.append(await compute_match_score(student, job_dict[recruiter_job_id]))
         avg_match = int(sum(match_scores) / len(match_scores)) if match_scores else 0
         
-        # Approximate time to hire (average days of jobs with hires)
-        hired_jobs = [j for j in jobs if any(a.job_id == str(j.id) and a.status == "hired" for a in apps)]
-        time_to_hire = int(sum(days_ago(j.created_at) for j in hired_jobs) / len(hired_jobs)) if hired_jobs else 0
+        # Real time-to-hire approximation from hired application timelines within range.
+        hired_apps = [a for a in status_updates_in_range if a.status == "hired" and a.applied_at]
+        time_to_hire = int(
+            sum(max(0, (now - _as_naive_utc(a.applied_at)).days) for a in hired_apps) / len(hired_apps)
+        ) if hired_apps else 0
         
+        # Keep card KPI aligned with Application Trends line total.
+        total_apps_from_trends = sum(int(point.get("apps", 0)) for point in trends)
+
         return {
             "stats": {
-                "totalApplications": total_apps,
+                "totalApplications": total_apps_from_trends,
                 "avgMatchScore": avg_match,
                 "avgTimeToHire": time_to_hire,
                 "interviewRate": int((interviews/total_apps*100)) if total_apps > 0 else 0,
-                "offerAcceptRate": int((offers/interviews*100)) if interviews > 0 else 0,
+                "offerAcceptRate": int((hired/offers*100)) if offers > 0 else 0,
             },
             "trends": trends,
             "sources": sources,
@@ -410,34 +451,53 @@ async def get_full_analytics(range: str = "30d", current_user: User = Depends(re
 async def get_analytics_trends(date_range: str = "30d", current_user: User = Depends(require_recruiter)):
     try:
         days = {"7d": 7, "30d": 30, "90d": 90}.get(date_range, 30)
-        jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
-        job_ids = [str(j.id) for j in jobs]
-        apps = await Application.find({"job_id": {"$in": job_ids}}).to_list()
+        _, linked_job_ids, _ = await build_recruiter_analytics_scope(current_user.email)
+        apps = await Application.find({"job_id": {"$in": list(linked_job_ids)}}).to_list()
 
         now = datetime.utcnow()
+        range_start = now - timedelta(days=days)
         
         if days <= 7:
             num_points = days
-            label_prefix = "Day"
             period_days = 1
         else:
-            num_points = max(1, days // 7)
-            label_prefix = "Wk"
+            num_points = max(1, math.ceil(days / 7))
             period_days = 7
 
         result = []
         for i in range(num_points):
-            period_start = now - timedelta(days=(num_points - i) * period_days)
-            period_end = period_start + timedelta(days=period_days)
-            period_apps = [a for a in apps if period_start <= a.applied_at <= period_end]
+            period_start = range_start + timedelta(days=i * period_days)
+            period_end = min(period_start + timedelta(days=period_days), now)
+            period_applied = [
+                a for a in apps
+                if a.applied_at and period_start <= _as_naive_utc(a.applied_at) < period_end
+            ]
+
+            period_status_updates = [
+                a for a in apps
+                if (
+                    _as_naive_utc(getattr(a, "status_updated_at", None))
+                    or _as_naive_utc(a.applied_at)
+                )
+                and period_start <= (
+                    _as_naive_utc(getattr(a, "status_updated_at", None))
+                    or _as_naive_utc(a.applied_at)
+                ) < period_end
+            ]
             
-            interviews = sum(1 for a in period_apps if a.status in ("interview", "offer", "hired"))
-            offers = sum(1 for a in period_apps if a.status in ("offer", "hired"))
-            hired = sum(1 for a in period_apps if a.status == "hired")
-            rejected = sum(1 for a in period_apps if a.status == "rejected")
+            interviews = sum(1 for a in period_status_updates if a.status in ("interview", "offer", "hired"))
+            offers = sum(1 for a in period_status_updates if a.status in ("offer", "hired"))
+            hired = sum(1 for a in period_status_updates if a.status == "hired")
+            rejected = sum(1 for a in period_status_updates if a.status == "rejected")
+
+            if days <= 7:
+                label = period_start.strftime("%b %d")
+            else:
+                label = f"{period_start.strftime('%b %d')} - {(period_end - timedelta(days=1)).strftime('%b %d')}"
+
             result.append({
-                "label": f"{label_prefix} {i + 1}",
-                "apps": len(period_apps),
+                "label": label,
+                "apps": len(period_applied),
                 "interviews": interviews,
                 "offers": offers,
                 "hired": hired,
@@ -451,14 +511,35 @@ async def get_analytics_trends(date_range: str = "30d", current_user: User = Dep
 @router.get("/analytics/sources")
 async def get_source_breakdown(current_user: User = Depends(require_recruiter)):
     try:
-        # Assuming all current applications are Native to SkillSync.
-        # If external sources/UTMs are added later, group by them here.
-        jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
-        job_ids = [str(j.id) for j in jobs]
-        apps_count = await Application.find({"job_id": {"$in": job_ids}}).count()
-        return [
-            {"name": "SkillSync Platform", "value": apps_count if apps_count > 0 else 1},
+        _, linked_job_ids, _ = await build_recruiter_analytics_scope(current_user.email)
+        apps = await Application.find({"job_id": {"$in": list(linked_job_ids)}}).to_list()
+
+        if not apps:
+            return []
+
+        referral = 0
+        github = 0
+        direct = 0
+
+        for app in apps:
+            tags = {t.lower() for t in (app.tags or [])}
+            if "referral" in tags:
+                referral += 1
+                continue
+
+            student = await Student.find_one(Student.email == app.student_email)
+            if student and student.github_url:
+                github += 1
+            else:
+                direct += 1
+
+        total = max(len(apps), 1)
+        source_rows = [
+            {"name": "Direct Platform", "value": round((direct / total) * 100)},
+            {"name": "GitHub Portfolio", "value": round((github / total) * 100)},
+            {"name": "Referral", "value": round((referral / total) * 100)},
         ]
+        return [row for row in source_rows if row["value"] > 0]
     except Exception as e:
         print(f"[ERROR sources]: {e}")
         raise HTTPException(500, "Internal error")
@@ -480,9 +561,8 @@ async def get_skill_demand(current_user: User = Depends(require_recruiter)):
 @router.get("/analytics/funnel")
 async def get_funnel(current_user: User = Depends(require_recruiter)):
     try:
-        jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
-        job_ids = [str(j.id) for j in jobs]
-        apps = await Application.find({"job_id": {"$in": job_ids}}).to_list()
+        _, linked_job_ids, _ = await build_recruiter_analytics_scope(current_user.email)
+        apps = await Application.find({"job_id": {"$in": list(linked_job_ids)}}).to_list()
         total = len(apps)
         screening = sum(1 for a in apps if a.status in ("reviewing","shortlisted","interview","offer","hired"))
         interview = sum(1 for a in apps if a.status in ("interview","offer","hired"))
@@ -504,10 +584,11 @@ async def get_funnel(current_user: User = Depends(require_recruiter)):
 @router.get("/analytics/job-performance")
 async def get_job_performance(current_user: User = Depends(require_recruiter)):
     try:
-        jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
+        jobs, linked_job_ids, app_job_to_recruiter_job = await build_recruiter_analytics_scope(current_user.email)
+        scoped_apps = await Application.find({"job_id": {"$in": list(linked_job_ids)}}).to_list()
         result = []
         for j in jobs:
-            j_apps = await Application.find(Application.job_id == str(j.id)).to_list()
+            j_apps = [a for a in scoped_apps if app_job_to_recruiter_job.get(str(a.job_id)) == str(j.id)]
             scores = []
             for app in j_apps:
                 student = await Student.find_one(Student.email == app.student_email)
@@ -737,6 +818,7 @@ async def update_application_stage(app_id: str, data: dict = Body(...), current_
         stage = data.get("stage", "")
         new_status = map_stage_to_status(stage)
         app.status = new_status
+        app.status_updated_at = datetime.utcnow()
         await app.save()
 
         # Keep duplicate application records in sync for the same student/job pair.
@@ -765,6 +847,7 @@ async def update_application_stage(app_id: str, data: dict = Body(...), current_
             if str(dup.id) == str(app.id):
                 continue
             dup.status = new_status
+            dup.status_updated_at = datetime.utcnow()
             await dup.save()
 
         return {"success": True}
@@ -1385,7 +1468,6 @@ async def get_plans(current_user: User = Depends(require_recruiter)):
         {"id": "free", "name": "Free", "price": 0, "current": False, "jobs": 1, "users": 1, "ats": False, "analytics": False},
         {"id": "starter", "name": "Starter", "price": 29, "current": False, "jobs": 5, "users": 3, "ats": True, "analytics": False},
         {"id": "growth", "name": "Growth", "price": 49, "current": True, "jobs": 10, "users": 5, "ats": True, "analytics": True},
-        {"id": "enterprise", "name": "Enterprise", "price": None, "current": False, "jobs": 999, "users": 999, "ats": True, "analytics": True},
     ]
 
 @router.post("/settings/change-password")

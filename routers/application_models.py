@@ -9,6 +9,7 @@ class Application(Document):
     job_id: str
     status: str = "applied"  # applied, reviewing, shortlisted, interview, offer, hired, rejected
     applied_at: datetime = Field(default_factory=datetime.now)
+    status_updated_at: datetime = Field(default_factory=datetime.now)
     tags: List[str] = []
     notes: List[dict] = []  # [{text, timestamp, author}]
 
