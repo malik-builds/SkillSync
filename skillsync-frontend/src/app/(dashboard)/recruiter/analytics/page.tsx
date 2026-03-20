@@ -126,16 +126,7 @@ export default function AnalyticsPage() {
         }
         rows.push([], []);
 
-        // 2. Conversion Funnel
-        rows.push(["----- CONVERSION FUNNEL -----"]);
-        rows.push(["Stage", "Candidates", "Drop-off %"]);
-        funnelData.forEach((d, i) => {
-            const drop = i > 0 ? (((funnelData[i - 1].value - d.value) / funnelData[i - 1].value) * 100).toFixed(1) + "%" : "0%";
-            rows.push([d.name, d.value, drop]);
-        });
-        rows.push([], []);
-
-        // 3. Application Trends
+        // 2. Application Trends
         rows.push([`----- APPLICATION TRENDS (${range}) -----`]);
         rows.push(["Period", "Applications", "Interviews", "Offers", "Hired", "Rejected"]);
         trendData.forEach(d => {
@@ -143,7 +134,7 @@ export default function AnalyticsPage() {
         });
         rows.push([], []);
 
-        // 4. Sources
+        // 3. Sources
         rows.push(["----- TOP CANDIDATE SOURCES -----"]);
         rows.push(["Source", "Percentage"]);
         sourceData.forEach(d => {
@@ -151,7 +142,7 @@ export default function AnalyticsPage() {
         });
         rows.push([], []);
 
-        // 5. Skill Demand
+        // 4. Skill Demand
         rows.push(["----- SKILL DEMAND -----"]);
         rows.push(["Skill", "Open Roles"]);
         skillDemand.forEach(d => {
@@ -159,7 +150,7 @@ export default function AnalyticsPage() {
         });
         rows.push([], []);
 
-        // 6. Job Performance
+        // 5. Job Performance
         rows.push(["----- JOB PERFORMANCE -----"]);
         rows.push(["Job Title", "Applications", "Avg Match %", "Time to Hire (days)", "Status Warning"]);
         if (jobPerformance && jobPerformance.length > 0) {
