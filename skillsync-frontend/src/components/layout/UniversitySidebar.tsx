@@ -13,6 +13,9 @@ import {
     LogOut,
     GraduationCap,
 } from "lucide-react";
+import { useApi } from "@/lib/hooks/useApi";
+import { UniversityDashboardStats } from "@/types/university";
+import { getUniversityStats } from "@/lib/api/university-api";
 
 interface UniversitySidebarProps {
     className?: string;
@@ -30,6 +33,10 @@ const NAV_ITEMS = [
 export function UniversitySidebar({ className }: UniversitySidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
+    const { data: stats } = useApi<UniversityDashboardStats>(getUniversityStats);
+
+    const personalName = stats?.personalName || "University Admin";
+    const institutionName = stats?.institutionName || "SkillSync University";
 
     return (
         <aside
@@ -77,8 +84,8 @@ export function UniversitySidebar({ className }: UniversitySidebarProps) {
                         <GraduationCap size={16} />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">Dr. Amal Perera</p>
-                        <p className="text-[11px] text-gray-500 truncate">University of Colombo</p>
+                        <p className="text-sm font-semibold text-gray-900 truncate">{personalName}</p>
+                        <p className="text-[11px] text-gray-500 truncate">{institutionName}</p>
                     </div>
                 </div>
 

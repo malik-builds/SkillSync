@@ -27,13 +27,18 @@ export default function PlacementsTrackingPage() {
     const COMPANIES = companiesData ?? [];
     const ROLES = rolesData ?? [];
 
+    const totalEligible = PROGRAMMES.reduce((a, b) => a + b.eligible, 0);
+    const totalSeeking = PROGRAMMES.reduce((a, b) => a + b.seeking, 0);
+    const totalSecured = PROGRAMMES.reduce((a, b) => a + b.secured, 0);
+    const successRate = totalSeeking > 0 ? Math.round((totalSecured / totalSeeking) * 100) : 0;
+
     return (
         <div className="space-y-6 pb-20">
             {/* ── Header ────────────────────────────────────────────────── */}
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-gray-200 pb-5">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Student Placement Tracking</h1>
-                    <p className="text-sm text-gray-500 mt-1">Academic Year 2024/25</p>
+                    <p className="text-sm text-gray-500 mt-1">Academic Year 2024/25 · {PROGRAMMES.length} Active Programmes</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
@@ -58,10 +63,7 @@ export default function PlacementsTrackingPage() {
 
                 <select className="bg-gray-50 border border-gray-200 text-sm text-gray-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-gray-400 min-w-[140px]">
                     <option>All Programmes</option>
-                    <option>Computer Science</option>
-                    <option>Information Tech</option>
-                    <option>Data Science</option>
-                    <option>Cybersecurity</option>
+                    {PROGRAMMES.map(p => <option key={p.name}>{p.name}</option>)}
                 </select>
 
                 <select className="bg-gray-50 border border-gray-200 text-sm text-gray-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-gray-400 min-w-[140px]">
@@ -80,7 +82,7 @@ export default function PlacementsTrackingPage() {
                             <Users size={14} className="text-gray-400" /> Internship Seekers
                         </p>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">847</p>
+                    <p className="text-3xl font-bold text-gray-900">{totalEligible.toLocaleString()}</p>
                 </div>
 
                 <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
@@ -89,7 +91,7 @@ export default function PlacementsTrackingPage() {
                             <Search size={14} className="text-gray-400" /> Actively Seeking
                         </p>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">432</p>
+                    <p className="text-3xl font-bold text-gray-900">{totalSeeking.toLocaleString()}</p>
                 </div>
 
                 <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
@@ -98,7 +100,7 @@ export default function PlacementsTrackingPage() {
                             <Briefcase size={14} className="text-gray-400" /> Secured Internships
                         </p>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">415</p>
+                    <p className="text-3xl font-bold text-gray-900">{totalSecured.toLocaleString()}</p>
                 </div>
 
                 <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
@@ -107,7 +109,7 @@ export default function PlacementsTrackingPage() {
                             <TrendingUp size={14} className="text-gray-400" /> Success Rate
                         </p>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">49%</p>
+                    <p className="text-3xl font-bold text-gray-900">{successRate}%</p>
                 </div>
             </div>
 
@@ -125,7 +127,7 @@ export default function PlacementsTrackingPage() {
                         <div className="relative">
                             <div className="flex justify-between text-sm font-medium mb-1">
                                 <span className="text-gray-700 text-base">Total Eligible Students</span>
-                                <span className="text-gray-900 font-bold">847 (100%)</span>
+                                <span className="text-gray-900 font-bold">{totalEligible} (100%)</span>
                             </div>
                             <div className="h-4 bg-gray-100 rounded-md overflow-hidden">
                                 <div className="h-full bg-slate-400 rounded-md" style={{ width: '100%' }}></div>
@@ -136,43 +138,21 @@ export default function PlacementsTrackingPage() {
                         <div className="relative border-l-2 border-dashed border-gray-200 ml-4 pl-4">
                             <div className="flex justify-between text-sm font-medium mb-1 pt-2">
                                 <span className="text-gray-700">Actively Seeking Internships</span>
-                                <span className="text-gray-900 font-bold">432 (51%)</span>
+                                <span className="text-gray-900 font-bold">{totalSeeking} ({totalEligible > 0 ? Math.round((totalSeeking / totalEligible) * 100) : 0}%)</span>
                             </div>
                             <div className="h-4 bg-gray-100 rounded-md overflow-hidden">
-                                <div className="h-full bg-slate-500 rounded-md" style={{ width: '51%' }}></div>
+                                <div className="h-full bg-slate-500 rounded-md" style={{ width: `${totalEligible > 0 ? (totalSeeking / totalEligible) * 100 : 0}%` }}></div>
                             </div>
                         </div>
 
                         {/* Stage 3 */}
                         <div className="relative border-l-2 border-dashed border-gray-200 ml-8 pl-4">
                             <div className="flex justify-between text-sm font-medium mb-1 pt-2">
-                                <span className="text-gray-700">Applied to Companies <span className="text-xs text-gray-400">(via SkillSync)</span></span>
-                                <span className="text-gray-900 font-bold">387 (46%)</span>
-                            </div>
-                            <div className="h-4 bg-gray-100 rounded-md overflow-hidden">
-                                <div className="h-full bg-slate-600 rounded-md" style={{ width: '46%' }}></div>
-                            </div>
-                        </div>
-
-                        {/* Stage 4 */}
-                        <div className="relative border-l-2 border-dashed border-gray-200 ml-12 pl-4">
-                            <div className="flex justify-between text-sm font-medium mb-1 pt-2">
-                                <span className="text-gray-700">Got Interview Invitations</span>
-                                <span className="text-gray-900 font-bold">298 (35%)</span>
-                            </div>
-                            <div className="h-4 bg-gray-100 rounded-md overflow-hidden">
-                                <div className="h-full bg-slate-700 rounded-md" style={{ width: '35%' }}></div>
-                            </div>
-                        </div>
-
-                        {/* Stage 5 */}
-                        <div className="relative border-l-2 border-dashed border-gray-200 ml-16 pl-4">
-                            <div className="flex justify-between text-sm font-medium mb-1 pt-2">
-                                <span className="text-gray-900 font-bold">Secured Internship Offers</span>
-                                <span className="text-gray-900 font-bold text-lg">415 (49%)</span>
+                                <span className="text-gray-700">Secured Internship Offers</span>
+                                <span className="text-gray-900 font-bold text-lg">{totalSecured} ({totalSeeking > 0 ? Math.round((totalSecured / totalSeeking) * 100) : 0}%)</span>
                             </div>
                             <div className="h-5 bg-gray-100 overflow-hidden rounded-md shadow-inner border border-gray-200">
-                                <div className="h-full bg-slate-700" style={{ width: '49%' }}></div>
+                                <div className="h-full bg-slate-700" style={{ width: `${totalSeeking > 0 ? (totalSecured / totalSeeking) * 100 : 0}%` }}></div>
                             </div>
                         </div>
                     </div>
@@ -280,40 +260,30 @@ export default function PlacementsTrackingPage() {
                         </h2>
 
                         <div className="space-y-5">
-                            <div>
-                                <div className="flex justify-between text-sm mb-1.5">
-                                    <span className="font-medium text-gray-700">3 months</span>
-                                    <span className="font-bold text-gray-900">142 (34%)</span>
+                            {ROLES.slice(0, 3).map(role => (
+                                <div key={role.name}>
+                                    <div className="flex justify-between text-sm mb-1.5">
+                                        <span className="font-medium text-gray-700">{role.name}</span>
+                                        <span className="font-bold text-gray-900">{role.students} ({role.percent}%)</span>
+                                    </div>
+                                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-slate-400" style={{ width: `${role.percent}%` }}></div>
+                                    </div>
                                 </div>
-                                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-slate-400" style={{ width: '34%' }}></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-sm mb-1.5">
-                                    <span className="font-medium text-gray-700">6 months</span>
-                                    <span className="font-bold text-gray-900">198 (48%)</span>
-                                </div>
-                                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-slate-500" style={{ width: '48%' }}></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-sm mb-1.5">
-                                    <span className="font-medium text-gray-700">12 months</span>
-                                    <span className="font-bold text-gray-900">75 (18%)</span>
-                                </div>
-                                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-slate-600" style={{ width: '18%' }}></div>
-                                </div>
-                            </div>
+                            ))}
                         </div>
 
                         <div className="mt-6 p-3 bg-stone-50 border border-gray-200 rounded-lg">
                             <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1.5 mb-1">
-                                Most common: 6 months
+                                Key Insight
                             </h4>
-                            <p className="text-[11px] text-gray-600">Industry prefers semester-long internships. Consider adjusting 3-month practicums to 6-months.</p>
+                            <p className="text-[11px] text-gray-600">
+                                {ROLES.length > 0 ? (
+                                    <>{ROLES[0].name} roles are currently the most popular among your students.</>
+                                ) : (
+                                    "No role participation data available."
+                                )}
+                            </p>
                         </div>
                     </div>
 
@@ -323,8 +293,14 @@ export default function PlacementsTrackingPage() {
                             <div>
                                 <h4 className="text-sm font-bold text-slate-800 mb-1">Strategic Insight</h4>
                                 <p className="text-xs text-slate-600 leading-relaxed">
-                                    <b>99X, Virtusa, and WSO2</b> are your top recruiters.
-                                    Strong partnerships here are worth maintaining or expanding for future graduate employment pipelines.
+                                    {COMPANIES.length > 0 ? (
+                                        <>
+                                            <b>{COMPANIES.slice(0, 3).map(c => c.name).join(", ")}</b> are your top recruiters.
+                                            Strong partnerships here are worth maintaining or expanding for future graduate employment pipelines.
+                                        </>
+                                    ) : (
+                                        "No recruiter data available. Connect with industry partners to see their hiring activity."
+                                    )}
                                 </p>
                             </div>
                         </div>
@@ -370,9 +346,14 @@ export default function PlacementsTrackingPage() {
                         <div>
                             <h4 className="text-sm font-bold text-slate-800 mb-1">Curriculum Alignment Insight</h4>
                             <p className="text-xs text-slate-600 leading-relaxed max-w-3xl">
-                                Full-Stack internships are the most common (<b className="text-slate-800">35%</b>).
-                                Curriculum should heavily prepare students for full-stack roles.
-                                DevOps and Mobile roles have fewer entry-level internship opportunities — set student expectations accordingly.
+                                {ROLES.length > 0 ? (
+                                    <>
+                                        <b>{ROLES[0].name}</b> internships are the most common (<b>{ROLES[0].percent}%</b>).
+                                        Curriculum should heavily prepare students for these roles to maintain high placement rates.
+                                    </>
+                                ) : (
+                                    "No role participation data available to generate alignment insights."
+                                )}
                             </p>
                         </div>
                     </div>

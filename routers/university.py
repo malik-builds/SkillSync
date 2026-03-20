@@ -429,10 +429,10 @@ async def get_curriculum_skills(
                 continue
             all_skill_data.append({
                 "id": f"s_{i}",
-                "skill": sk.title(),
+                "name": sk.title(),
                 "category": cat,
-                "demand": demand,
-                "studentProficiency": coverage,
+                "marketDemand": demand,
+                "studentCompetency": coverage,
                 "gap": gap,
                 "trend": trend,
             })
@@ -476,21 +476,56 @@ async def get_curriculum_stats(current_user: User = Depends(require_university))
     except Exception:
         raise HTTPException(500, "Internal error")
 
-@router.get("/curriculum/skills/{skill_id}/detail")
-async def get_skill_detail(skill_id: str, current_user: User = Depends(require_university)):
+@router.get("/curriculum/skills/{skill_name}/detail")
+async def get_skill_detail(skill_name: str, current_user: User = Depends(require_university)):
     try:
+        analytics = await compute_university_analytics()
+        if not analytics:
+            return {"name": skill_name, "gap": 0, "recommendations": []}
+
+        skills_freq = analytics["skillsFreq"]
+        missing_freq = analytics["missingFreq"]
+        total = analytics["totalStudents"]
+
+        freq = skills_freq.get(skill_name.lower(), 0)
+        miss = missing_freq.get(skill_name.lower(), 0)
+        coverage = min(100, int((freq / total) * 100))
+        demand = min(100, 60 + miss * 5)
+        gap = max(0, demand - coverage)
+
+        # Basic recommendations based on gap
+        recs = []
+        if gap > 50:
+            recs = [
+                f"Immediate curriculum revision required for {skill_name}.",
+                "Introduce mandatory practical modules.",
+                "Partner with industry for guest lectures."
+            ]
+        elif gap > 30:
+            recs = [
+                f"Strengthen {skill_name} in existing modules.",
+                "Offer optional certification bootcamps.",
+                "Update lab materials to latest industry standards."
+            ]
+        else:
+            recs = [
+                f"{skill_name} competency is well-aligned.",
+                "Monitor for future industry shifts.",
+                "Encourage advanced project work in this area."
+            ]
+
         return {
-            "id": skill_id,
-            "skill": "Unknown",
-            "category": "General",
-            "demand": 0,
-            "studentProficiency": 0,
-            "gap": 0,
-            "trend": "stable",
-            "relatedCourses": [],
-            "recommendations": ["Run a student analysis to get real curriculum gap data."]
+            "name": skill_name,
+            "category": "Technology",
+            "marketDemand": demand,
+            "studentCompetency": coverage,
+            "gap": gap,
+            "trend": "up" if gap > 25 else "stable",
+            "relatedCourses": ["Advanced Web Dev", "Professional Practice"],
+            "recommendations": recs
         }
-    except Exception:
+    except Exception as e:
+        print(f"[ERROR skill detail]: {e}")
         raise HTTPException(500, "Internal error")
 
 @router.get("/settings")
@@ -501,9 +536,12 @@ async def get_settings(current_user: User = Depends(require_university)):
             "institutionName": profile.institution_name,
             "website": profile.website,
             "address": profile.address,
-            "personalName": current_user.name,
+            "personalName": profile.personal_name or current_user.name,
+            "personalEmail": current_user.email,
             "personalRole": profile.personal_role,
             "personalPhone": profile.personal_phone,
+            "faculty": profile.faculty,
+            "accountType": profile.account_type,
             "notifications": profile.notification_settings or {
                 "placementAlerts": True,
                 "curriculumGaps": True,
@@ -518,6 +556,7 @@ async def update_settings(data: dict = Body(...), current_user: User = Depends(r
     try:
         profile = await get_university_profile(current_user)
         if "personalName" in data:
+            profile.personal_name = data["personalName"]
             current_user.name = data["personalName"]
             await current_user.save()
         if "institutionName" in data: profile.institution_name = data["institutionName"]
@@ -525,6 +564,8 @@ async def update_settings(data: dict = Body(...), current_user: User = Depends(r
         if "address" in data: profile.address = data["address"]
         if "personalRole" in data: profile.personal_role = data["personalRole"]
         if "personalPhone" in data: profile.personal_phone = data["personalPhone"]
+        if "faculty" in data: profile.faculty = data["faculty"]
+        if "accountType" in data: profile.account_type = data["accountType"]
         if "notifications" in data: profile.notification_settings = data["notifications"]
         await profile.save()
         return {"success": True}

@@ -173,7 +173,7 @@ export default function StudentAnalyticsPage() {
                 <KpiCard
                     label="Total Students"
                     value={TOTAL_STUDENTS.toLocaleString()}
-                    sub="Enrolled across 5 programmes"
+                    sub={`Enrolled across ${PROGRAMMES.length} programmes`}
                     icon={Users}
                 />
                 <KpiCard
@@ -354,8 +354,14 @@ export default function StudentAnalyticsPage() {
                     <div>
                         <p className="text-xs font-bold text-gray-800 mb-0.5">Curriculum Intervention Recommended</p>
                         <p className="text-[11px] text-gray-600 leading-relaxed">
-                            <b>TypeScript, Docker, and AWS</b> are missing in over 60% of all students — these are the highest-impact curriculum additions.
-                            Even a single practical module per skill could significantly close the gap before students enter the job market.
+                            {MISSING_SKILLS.length > 0 ? (
+                                <>
+                                    <b>{MISSING_SKILLS.slice(0, 3).map(s => s.skill).join(", ")}</b> are the most significant skill gaps across your students. 
+                                    Addressing these in upcoming modules could significantly close the gap before they enter the job market.
+                                </>
+                            ) : (
+                                "No significant skill gaps detected. Continue monitoring student progress across all programmes."
+                            )}
                         </p>
                     </div>
                 </div>

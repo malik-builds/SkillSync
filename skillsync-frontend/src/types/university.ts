@@ -167,6 +167,8 @@ export interface CurriculumSkillData {
   category: string;
   studentCompetency: number;
   marketDemand: number;
+  gap?: number;
+  trend?: "up" | "stable" | "down";
 }
 
 export interface CurriculumStats {
@@ -194,4 +196,16 @@ export interface UniPendingInvite {
   email: string;
   role: string;
   sentDate: string;
+}
+
+export interface UniversityAccountSettings {
+  institutionName: string;
+  website: string;
+  address: string;
+  personalName: string;
+  personalEmail: string;
+  personalRole: string;
+  personalPhone: string;
+  faculty?: string;
+  accountType?: string;
 }
