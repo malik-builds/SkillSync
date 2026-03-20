@@ -776,6 +776,9 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         student = await get_student_doc(current_user)
         extracted = student.extracted_data or {}
         gap_score = extracted.get("gap_report", {}).get("score", 0)
+        availability = ss(extracted.get("availability") or "open").strip().lower()
+        if availability not in ["looking", "open", "not_looking"]:
+            availability = "open"
         
         # Build rich skills list with verification from GitHub
         github_report = extracted.get("github_report") or student.ai_insights or {}
@@ -859,6 +862,7 @@ async def get_profile(current_user: User = Depends(get_current_user)):
             "university": "IIT Sri Lanka",
             "course": student.course or "",
             "avatarUrl": student.avatar_url or "",
+            "availability": availability,
             "skills": rich_skills,
             "githubUrl": student.github_url or "",
             "gapScore": gap_score,
@@ -875,11 +879,18 @@ async def get_profile(current_user: User = Depends(get_current_user)):
 async def update_profile(updates: dict = Body(...), current_user: User = Depends(get_current_user)):
     try:
         student = await get_student_doc(current_user)
+        extracted = student.extracted_data or {}
         
         if "name" in updates: student.name = updates["name"]
         if "course" in updates: student.course = updates["course"]
         if "skills" in updates: student.skills = updates["skills"]
         if "githubUrl" in updates: student.github_url = updates["githubUrl"]
+        if "availability" in updates:
+            new_availability = ss(updates.get("availability")).strip().lower()
+            if new_availability not in ["looking", "open", "not_looking"]:
+                raise HTTPException(400, "Invalid availability value")
+            extracted["availability"] = new_availability
+            student.extracted_data = extracted
             
         await student.save()
         return await get_profile(current_user)
