@@ -511,6 +511,10 @@ async def update_job(job_id: str, data: dict = Body(...), current_user: User = D
         j = await RecruiterJob.get(job_id)
         if not j or j.recruiter_email != current_user.email:
             raise HTTPException(404, "Job not found")
+
+        # Save old values before changing
+        old_title = j.title
+
         for field in ["title", "description", "location", "status", "department", "deadline"]:
             if field in data:
                 setattr(j, field, data[field])
@@ -523,6 +527,27 @@ async def update_job(job_id: str, data: dict = Body(...), current_user: User = D
         if "salaryMax" in data:
             j.salary_max = data["salaryMax"]
         await j.save()
+
+        # Mirror updates to student Job: try ID first, fallback to old title + company for legacy jobs
+        student_job = await Job.find_one(Job.recruiter_job_id == str(j.id))
+        if not student_job:
+            profile = await get_recruiter_profile(current_user)
+            student_job = await Job.find_one(Job.title == old_title, Job.company == profile.company_name, {"source": "Internal"})
+
+        if student_job:
+            student_job.recruiter_job_id = str(j.id) # Future-proof it
+            student_job.title = j.title
+            student_job.description = j.description
+            student_job.location = j.location
+            student_job.department = j.department
+            student_job.deadline = getattr(j, "deadline", "")
+            student_job.required_skills = j.requirements
+            student_job.work_type = j.work_type
+            student_job.salary_min = j.salary_min
+            student_job.salary_max = j.salary_max
+            student_job.is_active = (j.status != "closed")
+            await student_job.save()
+
         return {"success": True}
     except HTTPException:
         raise
@@ -536,6 +561,16 @@ async def delete_job(job_id: str, current_user: User = Depends(require_recruiter
         j = await RecruiterJob.get(job_id)
         if not j or j.recruiter_email != current_user.email:
             raise HTTPException(404, "Job not found")
+
+        # Mirror deletion to student Job
+        student_job = await Job.find_one(Job.recruiter_job_id == str(j.id))
+        if not student_job:
+            profile = await get_recruiter_profile(current_user)
+            student_job = await Job.find_one(Job.title == j.title, Job.company == profile.company_name, {"source": "Internal"})
+            
+        if student_job:
+            await student_job.delete()
+
         await j.delete()
         return {"success": True}
     except HTTPException:
