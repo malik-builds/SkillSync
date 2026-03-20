@@ -970,7 +970,7 @@ def format_conversation(conv: Conversation, current_email: str) -> dict:
     candidate_name = other_email
     return {
         "id": str(conv.id),
-        "candidateId": other_email,
+        "candidateId": other_email, # Note: this cannot be easily awaited here since format_conversation is sync. But it's only a fallback.
         "candidateName": candidate_name,
         "initials": initials(candidate_name),
         "avatarColor": "#3B82F6",
@@ -998,7 +998,7 @@ async def enrich_conversation(conv: Conversation, current_email: str) -> dict:
         })
     return {
         "id": str(conv.id),
-        "candidateId": other_email,
+        "candidateId": str(student.id) if student else other_email,
         "candidateName": candidate_name,
         "initials": initials(candidate_name),
         "avatarColor": avatar_color(candidate_name),

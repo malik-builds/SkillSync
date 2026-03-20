@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import {
-    Search, Send, Plus, X, ChevronDown, Check, CheckCheck,
+    Search, Send, Plus, X, ChevronDown, Check, CheckCheck, CheckCircle,
     User, Calendar, FileText, ExternalLink,
     Archive, Filter,
 } from "lucide-react";
@@ -10,6 +10,8 @@ import { RecruiterConversation, RecruiterMessage, RecruiterFilterTab } from "@/t
 import { useApi } from "@/lib/hooks/useApi";
 import { getRecruiterConversations, sendRecruiterMessage, createConversation as createConversationApi, archiveConversation, searchTalent, markRecruiterConversationRead } from "@/lib/api/recruiter-api";
 import { api } from "@/lib/api/client";
+import { CandidateProfileModal } from "@/components/recruiter/CandidateProfileModal";
+import { useRouter } from "next/navigation";
 
 // ─── Local type aliases ────────────────────────────────────────────────────────
 
@@ -233,8 +235,14 @@ function NewMessageModal({ onClose, onSent, candidates }: { onClose: () => void;
                         <textarea
                             value={text}
                             onChange={(e) => setText(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
+                                }
+                            }}
                             rows={4}
-                            placeholder="Type your message..."
+                            placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
                             className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                         />
                     </div>
@@ -257,6 +265,121 @@ function NewMessageModal({ onClose, onSent, candidates }: { onClose: () => void;
     );
 }
 
+// ─── Schedule Interview Modal ──────────────────────────────────────────────────
+
+function ScheduleInterviewModal({ onClose, onSchedule, candidateName }: { onClose: () => void; onSchedule: (text: string) => void; candidateName: string }) {
+    const [date, setDate] = useState("");
+    const [time, setTime] = useState("");
+    const [duration, setDuration] = useState("45 mins");
+    const [location, setLocation] = useState("");
+    const [notes, setNotes] = useState("");
+
+    const handleSchedule = () => {
+        if (!date || !time || !location) return;
+        
+        const firstName = candidateName.split(" ")[0];
+        let text = `Hi ${firstName},\n\nWe would like to invite you for an interview to discuss your application further.\n\n`;
+        text += `• Date: ${date}\n`;
+        text += `• Time: ${time} (${duration})\n`;
+        text += `• Location/Link: ${location}\n`;
+        if (notes.trim()) {
+            text += `\nAdditional Details:\n${notes.trim()}\n`;
+        }
+        text += `\nPlease let us know if this time works for you, or suggest an alternative. Looking forward to speaking with you!`;
+        
+        onSchedule(text);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-200">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                        <Calendar size={16} className="text-blue-600" /> Schedule Interview
+                    </h3>
+                    <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 text-gray-400">
+                        <X size={15} />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Date</label>
+                            <input
+                                type="date"
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Time</label>
+                            <input
+                                type="time"
+                                value={time}
+                                onChange={(e) => setTime(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-1">
+                            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Duration</label>
+                            <select
+                                value={duration}
+                                onChange={(e) => setDuration(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                            >
+                                <option>30 mins</option>
+                                <option>45 mins</option>
+                                <option>1 hour</option>
+                                <option>1.5 hours</option>
+                            </select>
+                        </div>
+                        <div className="col-span-2">
+                            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Location / Meeting Link</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Google Meet link or office address"
+                                value={location}
+                                onChange={(e) => setLocation(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Additional Notes (Optional)</label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            rows={3}
+                            placeholder="e.g. Please be ready for a short technical coding exercise."
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex gap-2 px-5 pb-5 pt-1">
+                    <button onClick={onClose} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSchedule}
+                        disabled={!date || !time || !location}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        <Send size={13} /> Send Invitation
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MessagesPage() {
@@ -268,8 +391,18 @@ export default function MessagesPage() {
     const [draft, setDraft] = useState("");
     const [showTemplates, setShowTemplates] = useState(false);
     const [showNewMessage, setShowNewMessage] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
+    const [toast, setToast] = useState<string | null>(null);
     const threadRef = useRef<HTMLDivElement>(null);
     const templateRef = useRef<HTMLDivElement>(null);
+    const router = useRouter();
+
+    // Show toast helper
+    const showToastMsg = (m: string) => {
+        setToast(m);
+        setTimeout(() => setToast(null), 3000);
+    };
 
     // Candidate list for new message modal — fetch from talent search
     const [talentList, setTalentList] = useState<{ id: string; name: string; initials: string; color: string; jobTitle: string; email: string }[]>([]);
@@ -333,10 +466,12 @@ export default function MessagesPage() {
     };
 
     // Send a message
-    const sendMessage = async () => {
-        if (!draft.trim() || !active) return;
-        const trimmed = draft.trim();
-        setDraft("");
+    const sendMessage = async (overrideText?: string) => {
+        const textToSend = overrideText || draft;
+        if (!textToSend.trim() || !active) return;
+        const trimmed = textToSend.trim();
+        if (!overrideText) setDraft("");
+        
         // Optimistic update
         const newMsg: Message = {
             id: `msg-${Date.now()}`,
@@ -499,10 +634,10 @@ export default function MessagesPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <button className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2 py-1 bg-white hover:border-blue-300 transition-colors">
+                                        <button onClick={() => router.push('/recruiter/applications')} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2 py-1 bg-white hover:border-blue-300 transition-colors">
                                             <FileText size={11} /> Application
                                         </button>
-                                        <button className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2 py-1 bg-white hover:border-blue-300 transition-colors">
+                                        <button onClick={() => setShowProfile(true)} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2 py-1 bg-white hover:border-blue-300 transition-colors">
                                             <User size={11} /> Profile <ExternalLink size={9} />
                                         </button>
                                     </div>
@@ -529,7 +664,10 @@ export default function MessagesPage() {
                                         value={draft}
                                         onChange={(e) => setDraft(e.target.value)}
                                         onKeyDown={(e) => {
-                                            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendMessage();
+                                            if (e.key === "Enter" && !e.shiftKey) {
+                                                e.preventDefault();
+                                                sendMessage();
+                                            }
                                         }}
                                         placeholder={`Message ${active.candidateName.split(" ")[0]}...`}
                                         rows={3}
@@ -563,9 +701,9 @@ export default function MessagesPage() {
 
                                         {/* Send */}
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-gray-400 hidden sm:block">Ctrl+Enter to send</span>
+                                            <span className="text-[10px] text-gray-400 hidden sm:block">Enter to send, Shift+Enter for new line</span>
                                             <button
-                                                onClick={sendMessage}
+                                                onClick={() => sendMessage()}
                                                 disabled={!draft.trim()}
                                                 className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold rounded-md shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                             >
@@ -578,16 +716,16 @@ export default function MessagesPage() {
                                 {/* Quick Actions */}
                                 <div className="border-t border-gray-200 bg-white px-5 py-3 flex items-center gap-2 flex-shrink-0">
                                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1">Quick:</span>
-                                    <button className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2.5 py-1 hover:border-blue-300 bg-white transition-colors">
+                                    <button onClick={() => router.push('/recruiter/applications')} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2.5 py-1 hover:border-blue-300 bg-white transition-colors">
                                         <FileText size={11} /> View Application
                                     </button>
-                                    <button className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2.5 py-1 hover:border-blue-300 bg-white transition-colors">
+                                    <button onClick={() => setShowProfile(true)} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2.5 py-1 hover:border-blue-300 bg-white transition-colors">
                                         <User size={11} /> Full Profile
                                     </button>
-                                    <button className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2.5 py-1 hover:border-blue-300 bg-white transition-colors">
+                                    <button onClick={() => setShowScheduleModal(true)} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-700 border border-gray-200 rounded px-2.5 py-1 hover:border-blue-300 bg-white transition-colors">
                                         <Calendar size={11} /> Schedule Interview
                                     </button>
-                                    <button className="ml-auto flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-700 border border-gray-200 rounded px-2.5 py-1 hover:border-gray-300 bg-white transition-colors">
+                                    <button onClick={() => handleArchive(active.id)} className="ml-auto flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-700 border border-gray-200 rounded px-2.5 py-1 hover:border-gray-300 bg-white transition-colors">
                                         <Archive size={11} /> Archive
                                     </button>
                                 </div>
@@ -608,6 +746,34 @@ export default function MessagesPage() {
                     onSent={refetch}
                     candidates={talentList}
                 />
+            )}
+
+            {/* Profile Modal */}
+            {showProfile && active && active.candidateId && (
+                <CandidateProfileModal
+                    candidateId={active.candidateId}
+                    onClose={() => setShowProfile(false)}
+                />
+            )}
+
+            {/* Schedule Interview Modal */}
+            {showScheduleModal && active && (
+                <ScheduleInterviewModal
+                    candidateName={active.candidateName}
+                    onClose={() => setShowScheduleModal(false)}
+                    onSchedule={(text) => {
+                        sendMessage(text);
+                        setShowScheduleModal(false);
+                        showToastMsg("Interview invitation sent");
+                    }}
+                />
+            )}
+
+            {/* Toast */}
+            {toast && (
+                <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-3 rounded-lg shadow-xl flex items-center gap-2">
+                    <CheckCircle size={14} className="text-green-400 flex-shrink-0" /> {toast}
+                </div>
             )}
         </>
     );
