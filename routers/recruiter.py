@@ -3,6 +3,8 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
 import base64
+from io import BytesIO
+from PIL import Image
 from auth.models import User
 from auth.dependencies import get_current_user
 from routers.recruiter_models import RecruiterProfile, RecruiterJob
@@ -1162,7 +1164,23 @@ async def get_schedule(current_user: User = Depends(require_recruiter)):
         print(f"[ERROR schedule]: {e}")
         raise HTTPException(500, "Internal error")
 
-# ─── Company logo upload stub ──────────────────────────────────────────────────
+# ─── Company logo and banner logic ──────────────────────────────────────────
+
+def process_image(content: bytes, max_size: tuple[int, int]) -> str:
+    """Takes image bytes, compresses to JPEG, and returns a Base64 data URL."""
+    try:
+        from PIL import Image
+        img = Image.open(BytesIO(content)).convert("RGB")
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        out = BytesIO()
+        img.save(out, format="JPEG", quality=80)
+        b64 = base64.b64encode(out.getvalue()).decode("utf-8")
+        return f"data:image/jpeg;base64,{b64}"
+    except Exception as e:
+        print(f"[ERROR process image]: {e}")
+        # fallback if pillow fails
+        b64 = base64.b64encode(content).decode("utf-8")
+        return f"data:image/jpeg;base64,{b64}"
 
 @router.post("/company/logo")
 async def upload_company_logo(
@@ -1171,9 +1189,7 @@ async def upload_company_logo(
 ):
     try:
         content = await logo.read()
-        b64 = base64.b64encode(content).decode("utf-8")
-        mime = logo.content_type or "image/png"
-        data_url = f"data:{mime};base64,{b64}"
+        data_url = process_image(content, (400, 400))
 
         profile = await get_recruiter_profile(current_user)
         profile.company_logo = data_url
@@ -1182,6 +1198,24 @@ async def upload_company_logo(
         return {"logoUrl": data_url}
     except Exception as e:
         print(f"[ERROR logo upload]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/company/banner")
+async def upload_company_banner(
+    banner: UploadFile = File(...),
+    current_user: User = Depends(require_recruiter)
+):
+    try:
+        content = await banner.read()
+        data_url = process_image(content, (1200, 400))
+
+        profile = await get_recruiter_profile(current_user)
+        profile.company_banner = data_url
+        await profile.save()
+
+        return {"bannerUrl": data_url}
+    except Exception as e:
+        print(f"[ERROR banner upload]: {e}")
         raise HTTPException(500, "Internal error")
 
 # ─── Company Profile ──────────────────────────────────────────────────────────
@@ -1194,7 +1228,7 @@ async def get_company(current_user: User = Depends(require_recruiter)):
             "name": profile.company_name,
             "tagline": profile.company_tagline or "",
             "website": profile.company_website,
-            "careersEmail": current_user.email,
+            "careersEmail": profile.company_careers_email or current_user.email,
             "location": profile.company_location or "Colombo, Sri Lanka",
             "size": profile.company_size or "11-50",
             "industry": profile.industry,
@@ -1202,13 +1236,14 @@ async def get_company(current_user: User = Depends(require_recruiter)):
             "specialties": profile.company_specialties or [],
             "about": profile.company_about or "",
             "logo": profile.company_logo or "",
+            "bannerUrl": profile.company_banner or "",
             "benefits": profile.company_benefits or [],
             "contact": {
-                "primaryContact": current_user.name,
+                "primaryContact": profile.contact_name or current_user.name,
                 "role": "Recruiter",
-                "email": current_user.email,
-                "phone": "",
-                "address": profile.company_location or "",
+                "email": profile.company_careers_email or current_user.email,
+                "phone": profile.company_phone or "",
+                "address": profile.company_address or profile.company_location or "",
             },
             "stats": [],
         }
@@ -1223,6 +1258,7 @@ async def update_company(data: dict = Body(...), current_user: User = Depends(re
             "name": "company_name",
             "tagline": "company_tagline",
             "website": "company_website",
+            "careersEmail": "company_careers_email",
             "location": "company_location",
             "size": "company_size",
             "industry": "industry",
@@ -1230,11 +1266,25 @@ async def update_company(data: dict = Body(...), current_user: User = Depends(re
             "specialties": "company_specialties",
             "about": "company_about",
             "logo": "company_logo",
+            "bannerUrl": "company_banner",
             "benefits": "company_benefits",
         }
         for key, attr in field_map.items():
             if key in data:
                 setattr(profile, attr, data[key])
+                
+        # Handle nested Contact object manually
+        if "contact" in data:
+            contact = data["contact"]
+            if "phone" in contact:
+                profile.company_phone = contact["phone"]
+            if "address" in contact:
+                profile.company_address = contact["address"]
+            if "email" in contact:
+                profile.company_careers_email = contact["email"]
+            if "primaryContact" in contact:
+                profile.contact_name = contact["primaryContact"]
+
         await profile.save()
         return {"success": True}
     except Exception as e:

@@ -320,3 +320,9 @@ export function uploadCompanyLogo(file: File) {
   formData.append('logo', file)
   return api.upload<{ logoUrl: string }>('/recruiter/company/logo', formData)
 }
+
+export function uploadCompanyBanner(file: File) {
+  const formData = new FormData()
+  formData.append('banner', file)
+  return api.upload<{ bannerUrl: string }>('/recruiter/company/banner', formData)
+}

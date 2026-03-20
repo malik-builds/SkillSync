@@ -7,20 +7,21 @@ import {
 } from "lucide-react";
 import { CompanyProfile } from "@/types/recruiter";
 import { useApi } from "@/lib/hooks/useApi";
-import { getCompanyProfile, updateCompanyProfile, uploadCompanyLogo } from "@/lib/api/recruiter-api";
+import { getCompanyProfile, updateCompanyProfile, uploadCompanyLogo, uploadCompanyBanner } from "@/lib/api/recruiter-api";
 
 // ─── Inline editable field ─────────────────────────────────────────────────────
 
 function EditableText({
-    value, multiline = false, className = "", editing, onChange,
+    value, type = "text", multiline = false, className = "", editing, onChange, placeholder = ""
 }: {
-    value: string; multiline?: boolean; className?: string; editing: boolean; onChange: (v: string) => void;
+    value: string; type?: string; multiline?: boolean; className?: string; editing: boolean; onChange: (v: string) => void; placeholder?: string;
 }) {
-    if (!editing) return <span className={className}>{value}</span>;
+    if (!editing) return <span className={className}>{value || ""}</span>;
     if (multiline) {
         return (
             <textarea
-                value={value}
+                value={value || ""}
+                placeholder={placeholder}
                 onChange={(e) => onChange(e.target.value)}
                 rows={6}
                 className={`${className} w-full border border-blue-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-blue-50/40 text-sm`}
@@ -29,9 +30,11 @@ function EditableText({
     }
     return (
         <input
-            value={value}
+            type={type}
+            value={value || ""}
+            placeholder={placeholder}
             onChange={(e) => onChange(e.target.value)}
-            className={`${className} border border-blue-300 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50/40`}
+            className={`${className} flex-1 min-w-0 border border-blue-300 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50/40`}
         />
     );
 }
@@ -91,7 +94,7 @@ export default function CompanyProfilePage() {
     if (error) return <div className="text-center py-12 text-red-500">Failed to load company profile. <button onClick={refetch} className="underline">Retry</button></div>;
 
     const d = editing ? draft : data;
-    const update = (key: string, value: string | number | string[]) => setDraft((prev) => prev ? { ...prev, [key]: value } : prev);
+    const update = (key: string, value: any) => setDraft((prev) => prev ? { ...prev, [key]: value } as any : prev);
 
     return (
         <div className="space-y-5">
@@ -123,20 +126,54 @@ export default function CompanyProfilePage() {
             {/* ── Hero card ── */}
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                 {/* Cover banner */}
-                <div className="h-28 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 relative">
-                    <div className="absolute inset-0 opacity-20"
-                        style={{
-                            backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
-                            backgroundSize: "24px 24px",
-                        }}
-                    />
+                <div
+                    onClick={() => { if (editing) document.getElementById('banner-upload')?.click(); }}
+                    className={`h-28 relative overflow-hidden ${editing ? "cursor-pointer ring-2 ring-inset ring-blue-400" : ""}`}
+                >
+                    {d.bannerUrl ? (
+                        <img src={d.bannerUrl} alt="Company Banner" className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600">
+                            <div className="absolute inset-0 opacity-20"
+                                style={{
+                                    backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+                                    backgroundSize: "24px 24px",
+                                }}
+                            />
+                        </div>
+                    )}
+                    {editing && (
+                        <>
+                            <div className="absolute opacity-0 hover:opacity-100 inset-0 bg-black/10 hover:bg-black/20 flex items-center justify-center transition-all duration-200">
+                                <span className="text-white font-semibold text-sm drop-shadow-md bg-black/40 px-3 py-1.5 rounded-md backdrop-blur-sm">Click to upload banner</span>
+                            </div>
+                            <input
+                                type="file"
+                                id="banner-upload"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        update("bannerUrl", URL.createObjectURL(file));
+                                        try {
+                                            const res = await uploadCompanyBanner(file);
+                                            update("bannerUrl", res.bannerUrl);
+                                        } catch (err) {
+                                            console.error("Failed to upload banner:", err);
+                                        }
+                                    }
+                                }}
+                            />
+                        </>
+                    )}
                 </div>
 
                 <div className="px-6 pb-6">
                     {/* Logo + basic info row */}
                     <div className="flex items-end gap-5 -mt-10 mb-5 relative z-10">
                         {/* Company logo */}
-                        <div 
+                        <div
                             onClick={() => { if (editing) document.getElementById('logo-upload')?.click(); }}
                             className={`w-20 h-20 rounded-xl bg-white border-4 border-white shadow-lg flex items-center justify-center flex-shrink-0 overflow-hidden relative ${editing ? "ring-2 ring-blue-400 cursor-pointer hover:opacity-90 transition-opacity" : ""}`}
                         >
@@ -148,11 +185,11 @@ export default function CompanyProfilePage() {
                                 </div>
                             )}
                             {editing && (
-                                <input 
-                                    type="file" 
-                                    id="logo-upload" 
-                                    className="hidden" 
-                                    accept="image/*" 
+                                <input
+                                    type="file"
+                                    id="logo-upload"
+                                    className="hidden"
+                                    accept="image/*"
                                     onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
@@ -164,7 +201,7 @@ export default function CompanyProfilePage() {
                                                 console.error("Failed to upload logo:", err);
                                             }
                                         }
-                                    }} 
+                                    }}
                                 />
                             )}
                         </div>
@@ -175,17 +212,23 @@ export default function CompanyProfilePage() {
 
                     <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
                         <div className="space-y-1">
-                            <EditableText value={d.name} editing={editing} onChange={(v) => update("name", v)} className="text-2xl font-bold text-gray-900 block mb-1" />
-                            <EditableText value={d.tagline} editing={editing} onChange={(v) => update("tagline", v)} className="text-sm text-gray-500 block mb-3" />
+                            <EditableText value={d.name} editing={editing} onChange={(v) => update("name", v)} className="text-2xl font-bold text-gray-900 block mb-1" placeholder="Company Name" />
+                            {/* Tagline */}
+                            <EditableText value={d.tagline || ""} editing={editing} onChange={(v) => update("tagline", v)} className="text-sm text-gray-500 block mb-3 w-full" placeholder="Company Tagline" />
                             <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-2">
                                 {[
-                                    { icon: Globe, val: d.website },
-                                    { icon: Mail, val: d.careersEmail },
-                                    { icon: MapPin, val: d.location },
-                                    { icon: Users, val: d.size },
-                                ].map(({ icon: Icon, val }) => (
-                                    <span key={val} className="flex items-center gap-1.5 text-xs text-gray-600">
-                                        <Icon size={12} className="text-gray-400" /> {val}
+                                    { icon: Globe, val: d.website, field: "website", placeholder: "Website URL" },
+                                    { icon: Mail, val: d.careersEmail, field: "careersEmail", placeholder: "Careers Email" },
+                                    { icon: MapPin, val: d.location, field: "location", placeholder: "Location" },
+                                    { icon: Users, val: d.size, field: "size", placeholder: "Company Size" },
+                                ].map(({ icon: Icon, val, field, placeholder }) => (
+                                    <span key={field} className="flex items-center gap-1.5 text-xs text-gray-600">
+                                        <Icon size={12} className="text-gray-400" /> 
+                                        {editing ? (
+                                            <EditableText value={val} editing={editing} onChange={(v) => update(field, v)} className="text-xs text-gray-600 min-w-[120px] bg-white/50" placeholder={placeholder} />
+                                        ) : (
+                                            val ? field === "website" ? <a href={val.startsWith("http") ? val : `https://${val}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-blue-600">{val}</a> : val : null
+                                        )}
                                     </span>
                                 ))}
                             </div>
@@ -225,17 +268,32 @@ export default function CompanyProfilePage() {
                     <Section title="Benefits & Perks">
                         <div className="grid sm:grid-cols-2 gap-3">
                             {d.benefits.map((b, i) => (
-                                <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
-                                    <span className="text-xl flex-shrink-0">{b.icon}</span>
-                                    <div>
-                                        <p className="text-[13px] font-bold text-gray-900">{b.label}</p>
-                                        <p className="text-[11px] text-gray-500 mt-0.5">{b.note}</p>
+                                <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition-colors relative group">
+                                    <span className="text-xl flex-shrink-0">
+                                        <EditableText value={b.icon} editing={editing} onChange={(v) => {
+                                            const nb = [...d.benefits]; nb[i] = { ...nb[i], icon: v }; update("benefits", nb);
+                                        }} className="w-8 text-center" />
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <EditableText value={b.label} editing={editing} onChange={(v) => {
+                                            const nb = [...d.benefits]; nb[i] = { ...nb[i], label: v }; update("benefits", nb);
+                                        }} className="text-[13px] font-bold text-gray-900 w-full mb-1" />
+                                        <EditableText value={b.note} editing={editing} onChange={(v) => {
+                                            const nb = [...d.benefits]; nb[i] = { ...nb[i], note: v }; update("benefits", nb);
+                                        }} className="text-[11px] text-gray-500 mt-0.5 w-full" />
                                     </div>
+                                    {editing && (
+                                        <button onClick={() => update("benefits", d.benefits.filter((_, idx) => idx !== i))} className="absolute top-2 right-2 text-gray-400 hover:text-red-500">
+                                            <X size={12} />
+                                        </button>
+                                    )}
                                 </div>
                             ))}
                         </div>
                         {editing && (
-                            <button className="mt-3 flex items-center gap-1 text-xs text-blue-700 hover:underline font-semibold">
+                            <button 
+                                onClick={() => update("benefits", [...d.benefits, { icon: "✨", label: "New Benefit", note: "Details" }])}
+                                className="mt-3 flex items-center gap-1 text-xs text-blue-700 hover:underline font-semibold">
                                 <Plus size={12} /> Add benefit
                             </button>
                         )}
@@ -249,15 +307,15 @@ export default function CompanyProfilePage() {
                     <Section title="Company Details">
                         <div className="space-y-4">
                             {[
-                                { icon: Building2, label: "Industry", val: d.industry },
-                                { icon: Users, label: "Company Size", val: d.size },
-                                { icon: Calendar, label: "Founded", val: d.founded },
-                            ].map(({ icon: Icon, label, val }) => (
+                                { icon: Building2, label: "Industry", val: d.industry, field: "industry" },
+                                { icon: Users, label: "Company Size", val: d.size, field: "size" },
+                                { icon: Calendar, label: "Founded", val: d.founded, field: "founded", type: "date" },
+                            ].map(({ icon: Icon, label, val, field, type }) => (
                                 <div key={label}>
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
                                     <span className="flex items-center gap-1.5 text-sm text-gray-800 font-medium">
                                         <Icon size={13} className="text-gray-400" />
-                                        <EditableText value={val} editing={editing} onChange={(v) => update(label.toLowerCase().replace(" ", ""), v)} className="text-sm text-gray-800 font-medium" />
+                                        <EditableText type={type || "text"} value={val} editing={editing} onChange={(v) => update(field, v)} className="text-sm text-gray-800 font-medium w-full" />
                                     </span>
                                 </div>
                             ))}
@@ -266,14 +324,24 @@ export default function CompanyProfilePage() {
                             <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Specialties</p>
                                 <div className="flex flex-wrap gap-1.5">
-                                    {d.specialties.map((s) => (
-                                        <span key={s} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                                            {s}
-                                            {editing && <X size={9} className="cursor-pointer" />}
+                                    {d.specialties.map((s, idx) => (
+                                        <span key={idx} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                            {editing ? (
+                                                <EditableText value={s} editing={editing} onChange={(v) => {
+                                                    const newSpecs = [...d.specialties];
+                                                    newSpecs[idx] = v;
+                                                    update("specialties", newSpecs);
+                                                }} className="w-20" />
+                                            ) : (
+                                                s
+                                            )}
+                                            {editing && <X size={9} className="cursor-pointer" onClick={() => update("specialties", d.specialties.filter((_, i) => i !== idx))} />}
                                         </span>
                                     ))}
                                     {editing && (
-                                        <button className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-dashed border-blue-300 text-blue-500 hover:bg-blue-50 transition-colors flex items-center gap-1">
+                                        <button 
+                                            onClick={() => update("specialties", [...d.specialties, "New"])}
+                                            className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-dashed border-blue-300 text-blue-500 hover:bg-blue-50 transition-colors flex items-center gap-1">
                                             <Plus size={10} /> Add
                                         </button>
                                     )}
@@ -292,18 +360,29 @@ export default function CompanyProfilePage() {
                             </div>
                             <div className="space-y-2">
                                 {[
-                                    { icon: Mail, val: d.contact.email },
-                                    { icon: Phone, val: d.contact.phone },
-                                ].map(({ icon: Icon, val }) => (
-                                    <div key={val} className="flex items-center gap-2 text-xs text-gray-700">
+                                    { icon: Mail, val: d.contact.email, field: "email" },
+                                    { icon: Phone, val: d.contact.phone, field: "phone" },
+                                ].map(({ icon: Icon, val, field }) => (
+                                    <div key={field} className="flex items-center gap-2 text-xs text-gray-700">
                                         <Icon size={12} className="text-gray-400 flex-shrink-0" />
-                                        <EditableText value={val} editing={editing} onChange={() => { }} className="text-xs text-gray-700" />
+                                        <EditableText 
+                                            value={val} 
+                                            editing={editing} 
+                                            onChange={(v) => setDraft(prev => prev ? { ...prev, contact: { ...prev.contact, [field]: v } } : prev)} 
+                                            className="text-xs text-gray-700 w-full" 
+                                        />
                                     </div>
                                 ))}
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Office Address</p>
-                                <p className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">{d.contact.address}</p>
+                                <EditableText 
+                                    value={d.contact.address} 
+                                    multiline
+                                    editing={editing} 
+                                    onChange={(v) => setDraft(prev => prev ? { ...prev, contact: { ...prev.contact, address: v } } : prev)} 
+                                    className="text-xs text-gray-700 whitespace-pre-line leading-relaxed" 
+                                />
                             </div>
                         </div>
                     </Section>

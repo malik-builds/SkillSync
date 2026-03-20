@@ -13,6 +13,11 @@ class RecruiterProfile(Document):
     company_founded: str = ""
     company_about: str = ""
     company_logo: str = ""
+    company_banner: str = ""
+    company_phone: str = ""
+    company_careers_email: str = ""
+    company_address: str = ""
+    contact_name: str = ""
     company_specialties: List[str] = []
     company_benefits: List[dict] = []
     industry: str = "Technology"

@@ -221,6 +221,8 @@ export interface CompanyProfile {
   founded: string;
   specialties: string[];
   about: string;
+  logo?: string;
+  bannerUrl?: string;
   benefits: CompanyBenefit[];
   contact: CompanyContact;
   stats: CompanyStat[];
