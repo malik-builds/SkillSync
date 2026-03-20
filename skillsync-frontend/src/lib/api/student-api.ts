@@ -287,6 +287,10 @@ export function addSkillToLearningPath(skill: string) {
   return api.post<{ success: boolean; alreadyAdded: boolean }>('/student/learning-paths/add-skill', { skill })
 }
 
+export function removeLearningPath(pathId: string) {
+  return api.delete<{ success: boolean }>(`/student/learning-paths/${pathId}`)
+}
+
 // ── Analysis ───────────────────────────────────────────────
 
 export interface AnalysisOverview {

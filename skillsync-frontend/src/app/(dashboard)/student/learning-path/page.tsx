@@ -7,15 +7,26 @@ import { CourseCard } from "@/components/student/learning-path/CourseCard";
 import { CapstoneCard } from "@/components/student/learning-path/CapstoneCard";
 import { ExternalLink, BookOpen, MonitorPlay } from "lucide-react";
 import { useApi } from "@/lib/hooks/useApi";
-import { getLearningPaths, updateNodeProgress } from "@/lib/api/student-api";
+import { getLearningPaths, removeLearningPath, updateNodeProgress } from "@/lib/api/student-api";
 
 export default function LearningPathPage() {
-    const { data: paths, loading, error, refetch } = useApi(() => getLearningPaths(), []);
+    const { data: pathsData, loading, error, refetch } = useApi(() => getLearningPaths(), []);
+    const [paths, setPaths] = useState<any[]>([]);
     const [activePathId, setActivePathId] = useState<string>("");
     const [updatingNodeId, setUpdatingNodeId] = useState<string | null>(null);
+    const [removingPathId, setRemovingPathId] = useState<string | null>(null);
+
+    const isInitialLoading = loading && paths.length === 0;
+
+    useEffect(() => {
+        setPaths(pathsData ?? []);
+    }, [pathsData]);
 
     useEffect(() => {
         if (!activePathId && paths && paths.length > 0) {
+            setActivePathId(paths[0].id);
+        }
+        if (activePathId && paths && paths.length > 0 && !paths.some((p) => p.id === activePathId)) {
             setActivePathId(paths[0].id);
         }
     }, [paths, activePathId]);
@@ -29,17 +40,79 @@ export default function LearningPathPage() {
     const nodes = path?.nodes ?? [];
 
     const handleMarkDone = async (pathId: string, nodeId: string) => {
+        if (!path) return;
+
+        // Optimistic UI update for smooth progress/checkmark transition.
+        setPaths((prev) => prev.map((p) => {
+            if (p.id !== pathId) return p;
+
+            const updatedNodes = (p.nodes || []).map((n: any) => {
+                if (n.id === nodeId) {
+                    return { ...n, status: "completed" };
+                }
+                return { ...n };
+            });
+
+            let nextActivated = false;
+            const normalizedNodes = updatedNodes.map((n: any) => {
+                if (n.status === "completed") return n;
+                if (!nextActivated) {
+                    nextActivated = true;
+                    return { ...n, status: "in-progress" };
+                }
+                return { ...n, status: "locked" };
+            });
+
+            const completedCourses = normalizedNodes.filter((n: any) => n.status === "completed").length;
+            const totalCourses = normalizedNodes.length;
+            const progress = Math.round((completedCourses / Math.max(totalCourses, 1)) * 100);
+
+            return {
+                ...p,
+                nodes: normalizedNodes,
+                completedCourses,
+                totalCourses,
+                progress,
+            };
+        }));
+
         try {
             setUpdatingNodeId(nodeId);
             await updateNodeProgress(pathId, nodeId, 100, true);
-            refetch();
+            void refetch();
+        } catch {
+            // Re-sync state from backend if save fails.
+            void refetch();
         } finally {
             setUpdatingNodeId(null);
         }
     };
 
-    if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading learning path...</div>;
-    if (error || !path) return <div className="flex items-center justify-center h-64 text-red-500">Failed to load learning path.</div>;
+    const handleRemoveCompletedPath = async (pathId: string) => {
+        try {
+            setRemovingPathId(pathId);
+            await removeLearningPath(pathId);
+            setPaths((prev) => prev.filter((p) => p.id !== pathId));
+            void refetch();
+        } finally {
+            setRemovingPathId(null);
+        }
+    };
+
+    if (isInitialLoading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading learning path...</div>;
+    if (error) return <div className="flex items-center justify-center h-64 text-red-500">Failed to load learning path.</div>;
+    if (!path) {
+        return (
+            <div className="min-h-screen pb-20 bg-[#F5F7FA]">
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center">
+                        <h1 className="text-2xl font-bold text-gray-900 mb-2">All Learning Path Tasks Completed</h1>
+                        <p className="text-gray-500">Great work. You have completed every task in your current learning paths.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen pb-20 bg-[#F5F7FA]">
@@ -47,6 +120,18 @@ export default function LearningPathPage() {
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Learning Action Plan</h1>
                     <p className="text-gray-500">Your personalized roadmap to become a {path.jobGoal || "professional"}. Complete each task to progress.</p>
+                    {path.progress === 100 && (
+                        <div className="mt-3 flex items-center gap-3">
+                            <span className="text-sm font-medium text-green-700">Completed</span>
+                            <button
+                                onClick={() => void handleRemoveCompletedPath(path.id)}
+                                disabled={removingPathId === path.id}
+                                className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold disabled:opacity-60"
+                            >
+                                {removingPathId === path.id ? "Removing..." : "Remove Completed"}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {(paths?.length || 0) > 1 && (

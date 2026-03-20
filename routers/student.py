@@ -1251,9 +1251,17 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
 
             return set()
 
-        # Normalize each path from persisted completion state.
+        removed_path_ids = {
+            ss(path_id).strip()
+            for path_id in sl(extracted.get("removed_learning_paths", []))
+            if ss(path_id).strip()
+        }
+
+        # Normalize each path from persisted completion state and hide only user-removed paths.
+        visible_paths = []
         for path_obj in dynamic_paths:
             path_nodes = sl(path_obj.get("nodes", []))
+            path_id = ss(path_obj.get("id"))
             completed_ids = _completed_node_ids_for_path(ss(path_obj.get("id")), path_nodes)
 
             completed_count = 0
@@ -1275,7 +1283,10 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
             path_obj["completedCourses"] = completed_count
             path_obj["progress"] = round((completed_count / max(total_nodes, 1)) * 100)
 
-        return dynamic_paths
+            if path_id and path_id not in removed_path_ids:
+                visible_paths.append(path_obj)
+
+        return visible_paths
         
     except Exception as e:
         print(f"[ERROR]: {e}")
@@ -1387,6 +1398,25 @@ async def update_learning_progress(path_id: str, node_id: str, data: dict = Body
             "completedNodeIds": list(completed_ids)
         }
         await student.save()
+        return {"success": True}
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.delete("/learning-paths/{path_id}")
+async def remove_learning_path(path_id: str, current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        extracted = student.extracted_data or {}
+        removed_paths = sl(extracted.get("removed_learning_paths", []))
+
+        normalized = {ss(p).strip() for p in removed_paths if ss(p).strip()}
+        if path_id not in normalized:
+            removed_paths.append(path_id)
+            extracted["removed_learning_paths"] = removed_paths
+            student.extracted_data = extracted
+            await student.save()
+
         return {"success": True}
     except Exception as e:
         print(f"[ERROR]: {e}")
