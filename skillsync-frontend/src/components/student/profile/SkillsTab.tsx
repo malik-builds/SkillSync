@@ -1,7 +1,7 @@
 import { StudentProfile } from "@/types/profile";
 import { SkillBadge } from "./SkillBadge";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { verifyGithubProfile } from "@/lib/api/student-api";
+import { addManualSkill, verifyGithubProfile } from "@/lib/api/student-api";
 import { CheckCircle2, User } from "lucide-react";
 import { useState } from "react";
 
@@ -16,6 +16,9 @@ export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
     const [verifying, setVerifying] = useState(false);
     const [verifyMessage, setVerifyMessage] = useState("");
     const [verifyError, setVerifyError] = useState("");
+    const [newSkill, setNewSkill] = useState("");
+    const [addingSkill, setAddingSkill] = useState(false);
+    const [addSkillError, setAddSkillError] = useState("");
 
     const runGithubVerification = async () => {
         try {
@@ -29,6 +32,25 @@ export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
             setVerifyError(e?.error || "GitHub verification failed.");
         } finally {
             setVerifying(false);
+        }
+    };
+
+    const submitNewSkill = async () => {
+        const skill = newSkill.trim();
+        if (!skill) {
+            setAddSkillError("Enter a skill name.");
+            return;
+        }
+        try {
+            setAddingSkill(true);
+            setAddSkillError("");
+            await addManualSkill(skill);
+            setNewSkill("");
+            onRefresh?.();
+        } catch (e: any) {
+            setAddSkillError(e?.error || "Failed to add skill.");
+        } finally {
+            setAddingSkill(false);
         }
     };
 
@@ -69,13 +91,41 @@ export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
                     ))}
 
                     {/* Add New Skill CTA */}
-                    <button className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 hover:bg-white text-gray-500 hover:text-gray-900 transition-colors group">
+                    <button
+                        onClick={() => {
+                            setAddSkillError("");
+                            setNewSkill("");
+                        }}
+                        className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 hover:bg-white text-gray-500 hover:text-gray-900 transition-colors group"
+                    >
                         <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center group-hover:bg-blue-50 border border-gray-200 group-hover:border-blue-100 transition-colors">
                             +
                         </span>
                         <span className="text-sm font-medium">Add Skill</span>
                     </button>
                 </div>
+                <div className="mt-3 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                    <input
+                        value={newSkill}
+                        onChange={(e) => setNewSkill(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                void submitNewSkill();
+                            }
+                        }}
+                        placeholder="Add a new skill (e.g. React, Docker)"
+                        className="w-full sm:flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    />
+                    <button
+                        onClick={() => void submitNewSkill()}
+                        disabled={addingSkill}
+                        className="px-4 py-2 rounded-lg bg-gray-900 hover:bg-black text-white text-sm font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                        {addingSkill ? "Adding..." : "Save Skill"}
+                    </button>
+                </div>
+                {addSkillError && <p className="text-xs text-red-600 mt-2">{addSkillError}</p>}
             </section>
 
             <GlassCard className="p-4 bg-blue-50 border-blue-100 flex items-center justify-between shadow-sm">

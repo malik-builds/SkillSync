@@ -251,6 +251,10 @@ export function updateStudentProfile(updates: Partial<StudentProfile>) {
   return api.patch<StudentProfile>('/student/profile', updates)
 }
 
+export function addManualSkill(name: string) {
+  return api.post<StudentProfile>('/student/profile/skills', { name })
+}
+
 export function verifyGithubProfile() {
   return api.post<{ success: boolean; verifiedSkills: string[] }>('/student/profile/verify-github')
 }

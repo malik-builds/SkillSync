@@ -784,6 +784,11 @@ async def get_profile(current_user: User = Depends(get_current_user)):
             for skill in sl(extracted.get("completed_learning_skills", []))
             if ss(skill).strip()
         }
+        manual_profile_skills = {
+            ss(skill).strip().lower()
+            for skill in sl(extracted.get("manual_profile_skills", []))
+            if ss(skill).strip()
+        }
         github_langs = extract_github_skill_set(github_report)
         
         rich_skills = []
@@ -793,11 +798,12 @@ async def get_profile(current_user: User = Depends(get_current_user)):
                 continue
             skill_key = skill_name.lower()
             is_learning_completed = skill_key in completed_learning_skills
+            is_manual_profile_skill = skill_key in manual_profile_skills
             is_verified = skill_key in github_langs
             rich_skills.append({
                 "name": skill_name,
                 "level": "Advanced" if is_verified else "Intermediate",
-                "source": "github" if skill_key in github_langs else "manual" if is_learning_completed else "cv",
+                "source": "github" if skill_key in github_langs else "manual" if (is_learning_completed or is_manual_profile_skill) else "cv",
                 "verified": is_verified
             })
         
@@ -877,6 +883,37 @@ async def update_profile(updates: dict = Body(...), current_user: User = Depends
             
         await student.save()
         return await get_profile(current_user)
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.post("/profile/skills")
+async def add_profile_skill(data: dict = Body(...), current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        skill_name = ss(data.get("name") or data.get("skill")).strip()
+        if not skill_name:
+            raise HTTPException(400, "Skill name is required")
+
+        extracted = student.extracted_data or {}
+        manual_profile = sl(extracted.get("manual_profile_skills", []))
+        manual_profile_norm = {ss(s).strip().lower() for s in manual_profile if ss(s).strip()}
+
+        existing = {ss(s).strip().lower() for s in sl(student.skills) if ss(s).strip()}
+        if skill_name.lower() not in existing:
+            student.skills.append(skill_name)
+
+        # Ensure this skill is always tagged as self-reported.
+        if skill_name.lower() not in manual_profile_norm:
+            manual_profile.append(skill_name)
+            extracted["manual_profile_skills"] = manual_profile
+            student.extracted_data = extracted
+
+        await student.save()
+
+        return await get_profile(current_user)
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[ERROR]: {e}")
         raise HTTPException(500, "Internal error")
