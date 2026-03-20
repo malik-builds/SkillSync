@@ -15,16 +15,16 @@ from .responses import get_user_response
 router = APIRouter()
 
 @router.post("/signup", response_model=AuthResponse)
-async def signup(request: SignUpRequest):
+async def signup(request: Request, body: SignUpRequest):
     """
     Registers a new user by hashing the password and saving it to MongoDB.
     Returns AuthResponse containing the token and user data for auto-login.
     """
-    existing_user = await User.find_one(User.email == request.email)
+    existing_user = await User.find_one(User.email == body.email)
 
-    hashed_pwd = hash_password(request.password)
+    hashed_pwd = hash_password(body.password)
     # Use provided name or default to email prefix
-    default_name = request.name or request.email.split("@")[0]
+    default_name = body.name or body.email.split("@")[0]
 
     if existing_user and existing_user.is_active:
         raise HTTPException(
@@ -35,7 +35,7 @@ async def signup(request: SignUpRequest):
     if existing_user and not existing_user.is_active:
         # Reuse deleted account email as a fresh account.
         existing_user.hashed_password = hashed_pwd
-        existing_user.role = request.role
+        existing_user.role = body.role
         existing_user.name = default_name
         existing_user.is_active = True
         existing_user.onboarding_complete = False
@@ -46,50 +46,54 @@ async def signup(request: SignUpRequest):
         user = existing_user
     else:
         user = User(
-            email=request.email,
+            email=body.email,
             hashed_password=hashed_pwd,
-            role=request.role,
+            role=body.role,
             name=default_name
         )
         await user.insert()
 
     # Ensure a linked Student profile exists when registering as student.
-    if request.role == "student":
-        student = await Student.find_one(Student.email == request.email)
+    if body.role == "student":
+        student = await Student.find_one(Student.email == body.email)
         if student:
             student.name = default_name
-            student.course = student.course or "Pending Update"
+            student.course = body.programme or student.course or "Pending Update"
+            student.institution = body.university or student.institution
+            student.graduation_year = body.graduationYear or student.graduation_year
             await student.save()
         else:
             student = Student(
                 name=default_name,
-                email=request.email,
-                course="Pending Update",
+                email=body.email,
+                course=body.programme or "Pending Update",
+                institution=body.university or "Informatics Institute of Technology",
+                graduation_year=body.graduationYear,
                 skills=[],
                 created_at=datetime.utcnow().isoformat()
             )
             await student.insert()
-    elif request.role == "university":
+    elif body.role == "university":
         from routers.university_models import UniversityProfile
-        profile = await UniversityProfile.find_one(UniversityProfile.uni_email == request.email)
+        profile = await UniversityProfile.find_one(UniversityProfile.uni_email == body.email)
         if profile:
             profile.personal_name = default_name
-            if request.university:
-                profile.institution_name = request.university
-            if request.jobTitle:
-                profile.personal_role = request.jobTitle
+            if body.university:
+                profile.institution_name = body.university
+            if body.jobTitle:
+                profile.personal_role = body.jobTitle
             await profile.save()
         else:
             profile = UniversityProfile(
-                uni_email=request.email,
+                uni_email=body.email,
                 personal_name=default_name,
-                institution_name=request.university or "Informatics Institute of Technology",
-                personal_role=request.jobTitle or "Administrator"
+                institution_name=body.university or "Informatics Institute of Technology",
+                personal_role=body.jobTitle or "Administrator"
             )
-            if request.faculty:
-                profile.notification_settings["faculty"] = request.faculty
-            if request.message:
-                profile.notification_settings["signup_message"] = request.message
+            if body.faculty:
+                profile.notification_settings["faculty"] = body.faculty
+            if body.message:
+                profile.notification_settings["signup_message"] = body.message
             await profile.insert()
 
     # Generate token immediately for auto-login

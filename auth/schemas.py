@@ -15,7 +15,10 @@ class SignUpRequest(BaseModel):
     university: Optional[str] = None
     faculty: Optional[str] = None
     jobTitle: Optional[str] = None
+    programme: Optional[str] = None
+    graduationYear: Optional[int] = None
     message: Optional[str] = None
+    termsAccepted: bool = True
 
 class OnboardingState(BaseModel):
     cvUploaded: bool
@@ -35,6 +38,9 @@ class UserOut(BaseModel):
     cvFileName: Optional[str] = None
     cvId: Optional[str] = None
     githubUsername: Optional[str] = None
+    university: Optional[str] = None
+    programme: Optional[str] = None
+    graduationYear: Optional[int] = None
 
 class AuthResponse(BaseModel):
     token: str

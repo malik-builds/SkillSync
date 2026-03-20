@@ -976,7 +976,7 @@ async def get_profile(current_user: User = Depends(get_current_user)):
             "id": str(student.id),
             "name": student.name or current_user.name,
             "email": student.email,
-            "university": "IIT Sri Lanka",
+            "university": student.institution,
             "course": student.course or "",
             "avatarUrl": student.avatar_url or "",
             "availability": availability,

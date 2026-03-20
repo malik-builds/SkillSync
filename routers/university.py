@@ -22,9 +22,9 @@ async def get_university_profile(current_user: User) -> UniversityProfile:
         await profile.insert()
     return profile
 
-async def compute_university_analytics():
-    """Aggregates real data across all Student documents."""
-    students = await Student.find_all().to_list()
+async def compute_university_analytics(institution: str):
+    """Aggregates real data across Student documents linked to this institution."""
+    students = await Student.find(Student.institution == institution).to_list()
     total_students = len(students)
     if total_students == 0:
         return None
@@ -92,8 +92,8 @@ def make_radar_from_analytics(analytics: dict) -> list:
 @router.get("/dashboard")
 async def get_dashboard(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
         profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
 
         # Real stats, fallback to sensible defaults if no data
         total_students = analytics["totalStudents"] if analytics else 0
@@ -181,7 +181,8 @@ async def get_dashboard(current_user: User = Depends(require_university)):
 @router.get("/dashboard/alerts")
 async def get_dashboard_alerts(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         alerts = []
         if analytics:
             missing_freq = analytics["missingFreq"]
@@ -200,7 +201,8 @@ async def get_dashboard_alerts(current_user: User = Depends(require_university))
 @router.get("/students")
 async def get_students_analytics(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
 
         total = analytics["totalStudents"] if analytics else 0
         avg_score = analytics["avgScore"] if analytics else 0
@@ -208,7 +210,7 @@ async def get_students_analytics(current_user: User = Depends(require_university
         missing_freq = analytics["missingFreq"] if analytics else {}
 
         # Real score distribution
-        all_students = await Student.find_all().to_list()
+        all_students = await Student.find(Student.institution == profile.institution_name).to_list()
         dist_buckets: dict = {"90-100": 0, "80-89": 0, "70-79": 0, "60-69": 0, "50-59": 0, "<50": 0}
         for s in all_students:
             ext = s.extracted_data or {}
@@ -309,7 +311,8 @@ async def get_top_companies(current_user: User = Depends(require_university)):
 @router.get("/placements/by-role")
 async def get_placements_by_role(current_user: User = Depends(require_university)):
     try:
-        all_students = await Student.find_all().to_list()
+        profile = await get_university_profile(current_user)
+        all_students = await Student.find(Student.institution == profile.institution_name).to_list()
         role_counts: dict = {}
         for s in all_students:
             role = s.target_role or "Unknown"
@@ -457,7 +460,8 @@ async def get_curriculum_skills(
 @router.get("/curriculum/stats")
 async def get_curriculum_stats(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         if not analytics:
             return {"totalSkillsTracked": 0, "skillsAtRisk": 0, "averageCoverage": 0, "industryAlignment": 0}
         skills_freq = analytics["skillsFreq"]
@@ -479,7 +483,8 @@ async def get_curriculum_stats(current_user: User = Depends(require_university))
 @router.get("/curriculum/skills/{skill_name}/detail")
 async def get_skill_detail(skill_name: str, current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         if not analytics:
             return {"name": skill_name, "gap": 0, "recommendations": []}
 
@@ -657,8 +662,8 @@ async def change_password(data: dict = Body(...), current_user: User = Depends(r
 @router.get("/dashboard/stats")
 async def get_dashboard_stats(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
         profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         total = analytics["totalStudents"] if analytics else 0
         avg = analytics["avgScore"] if analytics else 0
         placed = analytics["placedCount"] if analytics else 0
@@ -691,7 +696,8 @@ async def dismiss_alert(alert_id: str, current_user: User = Depends(require_univ
 @router.get("/dashboard/skill-gap-radar")
 async def get_skill_gap_radar(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         if not analytics:
             return []
         return make_radar_from_analytics(analytics)
@@ -701,7 +707,8 @@ async def get_skill_gap_radar(current_user: User = Depends(require_university)):
 @router.get("/dashboard/skill-bar")
 async def get_skill_bar(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         if not analytics:
             return []
         all_skills = analytics["skillsFreq"]
@@ -717,7 +724,8 @@ async def get_skill_bar(current_user: User = Depends(require_university)):
 @router.get("/dashboard/placement-summary")
 async def get_placement_summary(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         placed_pct = int(analytics["placementRate"]) if analytics else 0
         return [
             {"name": "Placement Ready", "value": placed_pct, "color": "#10B981"},
@@ -729,7 +737,8 @@ async def get_placement_summary(current_user: User = Depends(require_university)
 @router.get("/dashboard/programme-placements")
 async def get_programme_placements(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         placed = analytics["placedCount"] if analytics else 0
         total = analytics["totalStudents"] if analytics else 0
         rate = analytics["placementRate"] if analytics else 0
@@ -783,8 +792,9 @@ async def create_intervention(data: dict = Body(...), current_user: User = Depen
 @router.get("/students/stats")
 async def get_student_stats(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
-        all_students = await Student.find_all().to_list()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
+        all_students = await Student.find(Student.institution == profile.institution_name).to_list()
         return {
             "totalStudents": analytics["totalStudents"] if analytics else 0,
             "activeProfiles": len([s for s in all_students if s.extracted_data]),
@@ -797,7 +807,8 @@ async def get_student_stats(current_user: User = Depends(require_university)):
 @router.get("/students/programmes")
 async def get_programmes(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         total = analytics["totalStudents"] if analytics else 0
         avg = analytics["avgScore"] if analytics else 0
         return [{"id": "all", "name": "All Programmes", "studentCount": total, "avgScore": avg}]
@@ -807,7 +818,8 @@ async def get_programmes(current_user: User = Depends(require_university)):
 @router.get("/students/score-distribution")
 async def get_score_distribution(programme: Optional[str] = None, current_user: User = Depends(require_university)):
     try:
-        all_students = await Student.find_all().to_list()
+        profile = await get_university_profile(current_user)
+        all_students = await Student.find(Student.institution == profile.institution_name).to_list()
         buckets: dict = {"90-100": 0, "80-89": 0, "70-79": 0, "60-69": 0, "50-59": 0, "<50": 0}
         for s in all_students:
             ext = s.extracted_data or {}
@@ -825,7 +837,8 @@ async def get_score_distribution(programme: Optional[str] = None, current_user: 
 @router.get("/students/missing-skills")
 async def get_missing_skills(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         if not analytics:
             return []
         missing_freq = analytics["missingFreq"]

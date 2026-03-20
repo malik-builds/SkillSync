@@ -39,7 +39,7 @@ type StudentFormValues = z.infer<typeof studentSchema>;
 const UNIVERSITIES = [
     { value: "University of Colombo", label: "University of Colombo" },
     { value: "SLIIT", label: "SLIIT" },
-    { value: "IIT", label: "IIT (Informatics Institute of Technology)" },
+    { value: "Informatics Institute of Technology", label: "IIT (Informatics Institute of Technology)" },
     { value: "University of Moratuwa", label: "University of Moratuwa" },
     { value: "NSBM Green University", label: "NSBM Green University" },
 ];

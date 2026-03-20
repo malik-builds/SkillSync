@@ -10,6 +10,9 @@ async def get_user_response(user: User) -> UserOut:
     cv_id = None
     cv_filename = None
     github_username = None
+    university = None
+    programme = None
+    graduation_year = None
 
     if student:
         ext_data = student.extracted_data or {}
@@ -23,6 +26,10 @@ async def get_user_response(user: User) -> UserOut:
             parts = [p for p in student.github_url.split('/') if p]
             if parts:
                 github_username = parts[-1]
+        
+        university = student.institution
+        programme = student.course
+        graduation_year = student.graduation_year
 
     target_role_set = bool(getattr(user, "target_role", ""))
 
@@ -48,5 +55,8 @@ async def get_user_response(user: User) -> UserOut:
         profileCompletion=profile_completion,
         cvFileName=cv_filename,
         cvId=cv_id,
-        githubUsername=github_username
+        githubUsername=github_username,
+        university=university,
+        programme=programme,
+        graduationYear=graduation_year
     )

@@ -57,6 +57,8 @@ class Student(Document):
     saved_jobs: List[str] = []
     learning_progress: dict = {}
     target_role: Optional[str] = None
+    institution: str = "Informatics Institute of Technology"
+    graduation_year: Optional[int] = None
     
     # Nested Data Structures
     extracted_data: Optional[dict] = Field(default_factory=dict) 

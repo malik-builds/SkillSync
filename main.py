@@ -35,14 +35,6 @@ from routers.misc import router as misc_router
 # Rate Limiting Setup
 limiter = Limiter(key_func=get_remote_address)
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        return response
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Validate environment variables on startup
@@ -54,24 +46,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Setup CORS
-# TODO: Before production, replace * with your actual 
-# frontend domain e.g. ["https://skillsync.vercel.app"]
+# 1. CORS Configuration (Outer Middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         "https://skillsync.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Add Security Middlewares (Must be after CORS so CORS runs first on preflight)
-app.add_middleware(SecurityHeadersMiddleware)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
