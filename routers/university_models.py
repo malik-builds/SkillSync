@@ -11,6 +11,8 @@ class UniversityProfile(Document):
     personal_name: str = ""
     personal_role: str = "Administrator"
     personal_phone: str = ""
+    faculty: str = "Faculty of Science"
+    account_type: str = "Institutional Admin"
     partner_companies: List[dict] = []
     interventions: List[dict] = []
     dismissed_alerts: List[str] = []

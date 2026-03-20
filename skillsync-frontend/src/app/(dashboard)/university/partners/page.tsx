@@ -250,8 +250,14 @@ export default function PartnerCompaniesPage() {
                 <div className="flex-1">
                     <h4 className="text-sm font-bold text-slate-800 mb-1">Partnership Development Insight</h4>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                        <b>99X Technology, Virtusa, and IFS</b> accounted for <b>61%</b> of all student hires this year — these relationships are your highest-value partnerships.
-                        Consider formalizing MoU agreements with Pearson Lanka and Cinnamon Hotels who joined recently and show strong early engagement.
+                        {COMPANIES.length > 0 ? (
+                            <>
+                                <b>{COMPANIES.sort((a,b) => b.studentsHired - a.studentsHired).slice(0, 3).map(c => c.name).join(", ")}</b> have been your most active hiring partners this year. 
+                                Consider further engagement with these institutions for curriculum advisory or guest lectures.
+                            </>
+                        ) : (
+                            "No company data available. Partner with industry leaders to start tracking hiring trends and student placements."
+                        )}
                     </p>
                 </div>
                 <button className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 whitespace-nowrap transition-colors">

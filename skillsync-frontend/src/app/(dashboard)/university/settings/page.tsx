@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     User, Bell, Users, Check, X, Plus,
     Eye, EyeOff, Shield, Trash2,
     Mail, Send, Crown, Database,
     Download, GraduationCap, Building2,
 } from "lucide-react";
-import { UniTeamMember, UniPendingInvite } from "@/types/university";
+import { UniTeamMember, UniPendingInvite, UniversityAccountSettings, UniversityDashboardStats } from "@/types/university";
 import { useApi } from "@/lib/hooks/useApi";
-import { getUniversityTeam } from "@/lib/api/university-api";
+import { 
+    getUniversityTeam, 
+    getUniversityAccount, 
+    updateUniversityAccount, 
+    getUniversityNotificationSettings, 
+    updateUniversityNotificationSettings,
+    getUniversityStats
+} from "@/lib/api/university-api";
 
 type Tab = "account" | "team" | "notifications" | "data";
 type TeamMember = UniTeamMember;
@@ -108,10 +115,31 @@ function InviteModal({ onClose }: { onClose: () => void }) {
 // ─── Tab: Account ──────────────────────────────────────────────────────────────
 
 function AccountTab() {
+    const { data: account, loading, refetch } = useApi<UniversityAccountSettings>(getUniversityAccount);
     const [showPw, setShowPw] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
-    const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2500); };
+    // Form states
+    const [formData, setFormData] = useState<Partial<UniversityAccountSettings>>({});
+
+    const handleSave = async () => {
+        try {
+            setIsSaving(true);
+            await updateUniversityAccount(formData);
+            setSaved(true);
+            refetch();
+            setTimeout(() => setSaved(false), 2500);
+        } catch (error) {
+            console.error("Failed to save settings", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (loading && !account) return <div className="p-8 text-center text-gray-500">Loading account details...</div>;
+
+    const displayAccount = { ...account, ...formData };
 
     return (
         <div className="space-y-4">
@@ -124,10 +152,10 @@ function AccountTab() {
                     </div>
                     <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 flex-1">
                         {[
-                            { label: "University", value: "University of Colombo" },
-                            { label: "Account Type", value: "Institutional Admin" },
-                            { label: "Faculty", value: "Faculty of Science" },
-                            { label: "Accreditation ID", value: "UGC-COL-2024-0841" },
+                            { label: "University", value: displayAccount.institutionName || "Not Set" },
+                            { label: "Account Type", value: (displayAccount as any).accountType || "Institutional Admin" },
+                            { label: "Faculty", value: (displayAccount as any).faculty || "Not Set" },
+                            { label: "Accreditation ID", value: "UGC-COL-2024-0841" }, 
                         ].map((f) => (
                             <div key={f.label}>
                                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{f.label}</p>
@@ -144,16 +172,20 @@ function AccountTab() {
             {/* Personal info */}
             <Card title="Personal Information" desc="Your details as the account administrator">
                 <div className="grid sm:grid-cols-2 gap-4">
-                    {[
-                        { label: "Full Name", value: "Dr. Amal Perera", placeholder: "Full name" },
-                        { label: "Title / Role", value: "Head of Analytics", placeholder: "Your role" },
-                        { label: "Department", value: "Department of Computer Science", placeholder: "Department" },
-                        { label: "Phone", value: "+94 11 258 9301", placeholder: "+94..." },
-                    ].map((f) => (
+                    {([
+                        { label: "Full Name", key: "personalName", value: displayAccount.personalName || "", placeholder: "Full name" },
+                        { label: "Title / Role", key: "personalRole", value: displayAccount.personalRole || "", placeholder: "Your role" },
+                        { label: "Phone", key: "personalPhone", value: displayAccount.personalPhone || "", placeholder: "+94..." },
+                        { label: "Faculty", key: "faculty", value: (displayAccount as any).faculty || "", placeholder: "Faculty" },
+                    ] as const).map((f) => (
                         <div key={f.label}>
                             <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">{f.label}</label>
-                            <input defaultValue={f.value} placeholder={f.placeholder}
-                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" />
+                            <input 
+                                value={f.value} 
+                                onChange={(e) => setFormData(p => ({ ...p, [f.key]: e.target.value }))}
+                                placeholder={f.placeholder}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" 
+                            />
                         </div>
                     ))}
                 </div>
@@ -162,10 +194,10 @@ function AccountTab() {
             {/* Email */}
             <Card title="Email Address" desc="Used for login and institutional notifications">
                 <div className="flex items-center gap-3">
-                    <input defaultValue="analytics@colombo.ac.lk"
-                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-800" />
-                    <button className="flex-shrink-0 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-stone-50 transition-colors">
-                        Verify &amp; Update
+                    <input readOnly value={displayAccount.personalEmail || ""}
+                        className="flex-1 border border-transparent rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 cursor-not-allowed outline-none" />
+                    <button disabled className="flex-shrink-0 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-semibold text-gray-400 cursor-not-allowed">
+                        Update Restricted
                     </button>
                 </div>
             </Card>
@@ -202,9 +234,9 @@ function AccountTab() {
             </Card>
 
             <div className="flex justify-end">
-                <button onClick={handleSave}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${saved ? "bg-green-600 text-white" : "bg-blue-700 hover:bg-blue-800 text-white shadow-sm"}`}>
-                    {saved ? <><Check size={13} /> Saved!</> : "Save Changes"}
+                <button onClick={handleSave} disabled={isSaving}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${saved ? "bg-green-600 text-white" : "bg-blue-700 hover:bg-blue-800 text-white shadow-sm disabled:opacity-50"}`}>
+                    {isSaving ? "Saving..." : saved ? <><Check size={13} /> Saved!</> : "Save Changes"}
                 </button>
             </div>
         </div>
@@ -309,38 +341,43 @@ function TeamTab() {
 // ─── Tab: Notifications ────────────────────────────────────────────────────────
 
 function NotificationsTab() {
-    const [prefs, setPrefs] = useState({
-        weeklySummary: true,
-        criticalGaps: true,
-        placementDrops: true,
-        interventionLogged: true,
-        teamActivity: false,
-        reportReady: true,
-        systemAlerts: true,
-        newTrends: false,
-    });
-
-    const toggle = (key: keyof typeof prefs) => setPrefs((p) => ({ ...p, [key]: !p[key] }));
+    const { data: initialPrefs, loading, refetch } = useApi<Record<string, boolean>>(getUniversityNotificationSettings);
+    const [prefs, setPrefs] = useState<Record<string, boolean>>({});
     const [saved, setSaved] = useState(false);
-    const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2500); };
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Sync state with API data
+    useEffect(() => {
+        if (initialPrefs) setPrefs(initialPrefs);
+    }, [initialPrefs]);
+
+    const toggle = (key: string) => setPrefs((p) => ({ ...p, [key]: !p[key] }));
+    
+    const save = async () => {
+        try {
+            setIsSaving(true);
+            await updateUniversityNotificationSettings(prefs);
+            setSaved(true);
+            refetch();
+            setTimeout(() => setSaved(false), 2500);
+        } catch (error) {
+            console.error("Failed to save notifications", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (loading && !initialPrefs) return <div className="p-8 text-center text-gray-500">Loading preferences...</div>;
 
     const emailRows = [
-        { key: "weeklySummary" as const, label: "Weekly analytics summary", desc: "Recap of key metrics every Monday morning" },
-        { key: "criticalGaps" as const, label: "Critical curriculum gaps detected", desc: "When a skill gap exceeds 50% between student coverage and market demand" },
-        { key: "placementDrops" as const, label: "Placement rate alerts", desc: "Triggered when any programme's placement rate drops more than 5%" },
-        { key: "interventionLogged" as const, label: "New intervention logged by team", desc: "When a team member logs a curriculum change or workshop" },
-        { key: "teamActivity" as const, label: "Team activity digest", desc: "Summary of team actions in the workspace (daily)" },
-    ];
-
-    const appRows = [
-        { key: "reportReady" as const, label: "Report generation complete", desc: "When a scheduled or custom report is ready to download" },
-        { key: "systemAlerts" as const, label: "System & data updates", desc: "Platform maintenance, data refresh cycles, new features" },
-        { key: "newTrends" as const, label: "Industry trend changes", desc: "When new skills enter the top-20 demand list" },
+        { key: "placementAlerts", label: "Placement rate alerts", desc: "Recap of key metrics of placement" },
+        { key: "curriculumGaps", label: "Critical curriculum gaps detected", desc: "When a skill gap exceeds 50% between student coverage and market demand" },
+        { key: "monthlyReport", label: "Monthly analytics summary", desc: "Recap of key metrics every month morning" },
     ];
 
     return (
         <div className="space-y-4">
-            <Card title="Email Notifications" desc="Delivered to analytics@colombo.ac.lk">
+            <Card title="Email Notifications" desc="Institutional alerts and summaries">
                 <div className="divide-y divide-gray-50">
                     {emailRows.map((r) => (
                         <div key={r.key} className="flex items-center justify-between py-3.5 first:pt-0 last:pb-0">
@@ -348,43 +385,33 @@ function NotificationsTab() {
                                 <p className="text-sm font-medium text-gray-900">{r.label}</p>
                                 <p className="text-[11px] text-gray-500 mt-0.5">{r.desc}</p>
                             </div>
-                            <Toggle checked={prefs[r.key]} onChange={() => toggle(r.key)} />
-                        </div>
-                    ))}
-                </div>
-            </Card>
-
-            <Card title="In-App Notifications" desc="Alerts shown within the SkillSync dashboard">
-                <div className="divide-y divide-gray-50">
-                    {appRows.map((r) => (
-                        <div key={r.key} className="flex items-center justify-between py-3.5 first:pt-0 last:pb-0">
-                            <div>
-                                <p className="text-sm font-medium text-gray-900">{r.label}</p>
-                                <p className="text-[11px] text-gray-500 mt-0.5">{r.desc}</p>
-                            </div>
-                            <Toggle checked={prefs[r.key]} onChange={() => toggle(r.key)} />
+                            <Toggle checked={!!prefs[r.key]} onChange={() => toggle(r.key)} />
                         </div>
                     ))}
                 </div>
             </Card>
 
             <div className="flex justify-end">
-                <button onClick={save}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${saved ? "bg-green-600 text-white" : "bg-blue-700 hover:bg-blue-800 text-white shadow-sm"}`}>
-                    {saved ? <><Check size={13} /> Saved!</> : "Save Preferences"}
+                <button onClick={save} disabled={isSaving}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${saved ? "bg-green-600 text-white" : "bg-blue-700 hover:bg-blue-800 text-white shadow-sm disabled:opacity-50"}`}>
+                    {isSaving ? "Saving..." : saved ? <><Check size={13} /> Saved!</> : "Save Preferences"}
                 </button>
             </div>
         </div>
     );
 }
 
-// ─── Tab: Data & Privacy ───────────────────────────────────────────────────────
+// ─── Tab: Data & Privacy ──────────────────────────────────────────────────────
 
 function DataPrivacyTab() {
+    const { data: stats } = useApi<UniversityDashboardStats>(getUniversityStats);
     const [anonymize, setAnonymize] = useState(true);
     const [optOut, setOptOut] = useState(true);
     const [saved, setSaved] = useState(false);
+    
     const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2500); };
+
+    const studentCount = stats?.totalStudents || 0;
 
     return (
         <div className="space-y-4">
@@ -460,7 +487,7 @@ function DataPrivacyTab() {
             <Card title="Integrations" desc="Connected systems and data sources">
                 <div className="divide-y divide-gray-50">
                     {[
-                        { name: "Student Information System (SIS)", status: "Connected", statusColor: "bg-green-50 text-green-700 border-green-200", detail: "Last sync: 2 hours ago · 1,247 student records" },
+                        { name: "Student Information System (SIS)", status: "Connected", statusColor: "bg-green-50 text-green-700 border-green-200", detail: `Last sync: 2 hours ago · ${studentCount.toLocaleString()} student records` },
                         { name: "Learning Management System (LMS)", status: "Connected", statusColor: "bg-green-50 text-green-700 border-green-200", detail: "Moodle · Last sync: 6 hours ago" },
                         { name: "LinkedIn Tracking", status: "Active", statusColor: "bg-green-50 text-green-700 border-green-200", detail: "Graduate employment verification · 89% response rate" },
                         { name: "Job Portal API", status: "Not Connected", statusColor: "bg-gray-100 text-gray-500 border-gray-200", detail: "Connect to import real-time job market data" },

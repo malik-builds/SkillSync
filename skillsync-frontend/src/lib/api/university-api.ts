@@ -27,6 +27,7 @@ import {
   CurriculumStats,
   UniTeamMember,
   UniPendingInvite,
+  UniversityAccountSettings,
 } from '@/types/university'
 
 // ── Dashboard ──────────────────────────────────────────────
@@ -217,16 +218,6 @@ export function getSkillDetail(skillId: string) {
 }
 
 // ── Settings ───────────────────────────────────────────────
-
-export interface UniversityAccountSettings {
-  institutionName: string
-  website: string
-  address: string
-  personalName: string
-  personalEmail: string
-  personalRole: string
-  personalPhone: string
-}
 
 export function getUniversityAccount() {
   return api.get<UniversityAccountSettings>('/university/settings/account')

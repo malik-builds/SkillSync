@@ -12,7 +12,11 @@ import {
 } from "recharts";
 import { CurriculumSkillData, GapSeverity } from "@/types/university";
 import { useApi } from "@/lib/hooks/useApi";
-import { getCurriculumOverview, CurriculumOverviewData } from "@/lib/api/university-api";
+import {
+    getCurriculumOverview, 
+    getSkillDetail,
+    CurriculumOverviewData 
+} from "@/lib/api/university-api";
 
 type SkillData = CurriculumSkillData;
 
@@ -133,7 +137,7 @@ export default function CurriculumGapAnalysisPage() {
                     <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                     <p className="text-xs font-semibold text-blue-100 uppercase tracking-wider mb-1 relative z-10">Alignment Score</p>
                     <div className="flex items-end gap-2 relative z-10">
-                        <p className="text-3xl font-extrabold tracking-tight">68</p>
+                        <p className="text-3xl font-extrabold tracking-tight">{curriculumData?.stats?.alignmentScore ?? 0}</p>
                         <p className="text-sm text-blue-200 font-medium mb-1">/100</p>
                     </div>
                     <p className="text-[10px] text-blue-100 mt-1 relative z-10">Industry avg: 71/100</p>
@@ -266,6 +270,11 @@ export default function CurriculumGapAnalysisPage() {
                 {viewMode === "analysis" ? (
                     <>
                         {/* Analysis Table View */}
+                        {filteredSkills.length === 0 ? (
+                            <div className="p-20 text-center">
+                                <p className="text-sm text-gray-400 italic">No curriculum data available. Ensure students are registered and have assigned skills.</p>
+                            </div>
+                        ) : (
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-gray-200 bg-white">
@@ -295,29 +304,38 @@ export default function CurriculumGapAnalysisPage() {
                                                 </div>
                                             </td>
                                             <td className="py-4 px-3">
-                                                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">{skill.category}</span>
+                                                <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200 uppercase tracking-wide">
+                                                    {skill.category}
+                                                </span>
                                             </td>
-                                            <td className="py-4 px-3 border-l border-gray-50">
-                                                {renderCell(skill.studentCompetency, severity)}
-                                            </td>
-                                            <td className="py-4 px-3 bg-blue-50/10 border-l border-blue-50">
-                                                {renderCell(skill.marketDemand, "good", true)}
-                                            </td>
-                                            <td className="py-4 px-5 text-right border-l border-gray-50">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <span className={`text-sm font-bold ${severity === 'critical' ? 'text-gray-900' : severity === 'moderate' ? 'text-gray-700' : 'text-slate-500'}`}>
-                                                        {gap}%
-                                                    </span>
-                                                    {severity === 'critical' && <AlertCircle size={14} className="text-gray-500" />}
+                                            <td className="py-4 px-3 border-l border-gray-100">
+                                                <div className="flex items-center gap-3 pr-4">
+                                                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden shadow-inner">
+                                                        <div className="h-full bg-gray-400 rounded-full" style={{ width: `${skill.studentCompetency}%` }} />
+                                                    </div>
+                                                    <span className="text-[13px] font-bold text-gray-900 w-8 text-right">{skill.studentCompetency}%</span>
                                                 </div>
+                                            </td>
+                                            <td className="py-4 px-3 bg-blue-50/10 border-l border-gray-100">
+                                                <div className="flex items-center gap-3 pr-4">
+                                                    <div className="flex-1 h-2 bg-blue-100/50 rounded-full overflow-hidden shadow-inner font-bold">
+                                                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${skill.marketDemand}%` }} />
+                                                    </div>
+                                                    <span className="text-[13px] font-bold text-blue-700 w-8 text-right">{skill.marketDemand}%</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-5 text-right border-l border-gray-100">
+                                                <span className={`text-[13px] font-black tracking-tight ${severity === 'critical' ? 'text-red-600' : severity === 'moderate' ? 'text-amber-600' : 'text-green-600'}`}>
+                                                    {gap}% {severity === 'critical' ? '!!' : ''}
+                                                </span>
                                             </td>
                                         </tr>
 
                                         {/* EXPANDED ROW DETAIL */}
                                         {isExpanded && (
                                             <tr>
-                                                <td colSpan={5} className="p-0 border-b-2 border-blue-100 bg-blue-50/10">
-                                                    <div className="p-0 animate-in fade-in slide-in-from-top-2 duration-300 ease-out">
+                                                <td colSpan={5} className="p-0 border-b border-gray-100">
+                                                    <div className="p-0">
                                                         <SkillDetailPanel skill={skill} gap={gap} severity={severity} />
                                                     </div>
                                                 </td>
@@ -326,11 +344,12 @@ export default function CurriculumGapAnalysisPage() {
                                     </React.Fragment>
                                 );
                             })}
-                        </tbody>
-                    </table>
-
-                {/* Footer Controls */}
-                <div className="px-5 py-4 border-t border-gray-100 bg-stone-50/50 flex items-center justify-between">
+                            </tbody>
+                        </table>
+                    )}
+                    
+                    {/* Footer Controls */}
+                    <div className="px-5 py-4 border-t border-gray-100 bg-stone-50/50 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Legend:</span>
                         <div className="flex items-center gap-1.5">
@@ -372,7 +391,7 @@ export default function CurriculumGapAnalysisPage() {
 
             {/* Meta Footer */}
             <div className="text-center pt-8">
-                <p className="text-[11px] text-gray-400">Analysis based on 1,247 students | 42 tracked skills <br className="sm:hidden" /> <span className="hidden sm:inline">|</span> Market data from 2,847 job postings (Sri Lanka, last 6 months)</p>
+                <p className="text-[11px] text-gray-400">Analysis based on {totalAnalyzed} students | {SKILLS_DATA.length} tracked skills <br className="sm:hidden" /> <span className="hidden sm:inline">|</span> Market data from real job postings in SkillSync network</p>
             </div>
         </div>
     );
@@ -517,6 +536,8 @@ function GapAnalysisChart({ skills }: { skills: SkillData[] }) {
 // ─── Sub-component: Detailed Skill Panel ─────────────────────────────────────
 
 function SkillDetailPanel({ skill, gap, severity }: { skill: SkillData, gap: number, severity: GapSeverity }) {
+    const { data: detail, loading } = useApi<any>(() => getSkillDetail(skill.name));
+
     return (
         <div className="flex flex-col xl:flex-row shadow-inner bg-white/50 relative">
 
@@ -573,15 +594,15 @@ function SkillDetailPanel({ skill, gap, severity }: { skill: SkillData, gap: num
                     <ul className="space-y-3">
                         <li className="text-sm text-gray-700 flex items-start gap-2.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
-                            <span>Required in <b>87%</b> of modern {skill.category}/Full-Stack postings</span>
+                            <span>Required in <b>{skill.marketDemand}%</b> of modern {skill.category} role postings</span>
                         </li>
                         <li className="text-sm text-gray-700 flex items-start gap-2.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 flex-shrink-0" />
-                            <span>Avg salary premium: <b className="text-green-700">+18%</b> for proficiency in this skill</span>
+                            <span>Gap size: <b className={gap > 30 ? "text-red-600" : "text-green-700"}>{gap}%</b> {gap > 30 ? "(Priority Fix)" : "(Stable)"}</span>
                         </li>
                         <li className="text-sm text-gray-700 flex items-start gap-2.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 flex-shrink-0" />
-                            <span>Trending: <b className="text-green-700">+12%</b> regional demand increase in last 6 months</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                            <span>Market Trend: <b className="text-blue-700">{skill.trend === 'up' ? "Rising Demand" : "Stable Demand"}</b></span>
                         </li>
                     </ul>
                 </div>
@@ -601,37 +622,26 @@ function SkillDetailPanel({ skill, gap, severity }: { skill: SkillData, gap: num
                     </div>
                 </div>
 
-                <div className="space-y-4 flex-1">
-                    {/* Option 1 */}
-                    <div className="bg-white border-2 border-blue-500/20 rounded-xl p-5 shadow-md relative overflow-hidden transition-all hover:border-blue-500/40 hover:shadow-lg">
-                        <div className="absolute top-0 right-0 bg-blue-600 text-white text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-bl-lg shadow-sm">Recommended</div>
-                        <h5 className="font-bold text-gray-900 text-sm mb-3 pr-20">Integrate into existing Advanced Web Dev</h5>
-                        <ul className="space-y-2 mb-0">
-                            <li className="text-[13px] text-gray-700 flex gap-2"><span className="text-gray-400 mt-0.5">•</span> <b>Expected Impact:</b> Increase competency to ~65% next cohort</li>
-                            <li className="text-[13px] text-gray-700 flex gap-2"><span className="text-gray-400 mt-0.5">•</span> <b>Effort Level:</b> Low (Replace 3 weeks of legacy framework content)</li>
-                            <li className="text-[13px] text-gray-700 flex gap-2"><span className="text-gray-400 mt-0.5">•</span> <b>Similar to:</b> SLIIT&apos;s successful Y3 curriculum revision</li>
-                        </ul>
+                {loading ? (
+                    <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+                        Analyzing gaps and generating recommendations...
                     </div>
-
-                    {/* Option 2 */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
-                        <h5 className="font-bold text-gray-900 text-sm mb-3">Create Dedicated {skill.name} Elective</h5>
-                        <ul className="space-y-2 mb-0">
-                            <li className="text-[13px] text-gray-700 flex gap-2"><span className="text-gray-400 mt-0.5">•</span> <b>Expected Impact:</b> Limit to ~45% (dependent on elective uptake)</li>
-                            <li className="text-[13px] text-gray-700 flex gap-2"><span className="text-gray-400 mt-0.5">•</span> <b>Effort Level:</b> High (New 15-week course design needed)</li>
-                            <li className="text-[13px] text-gray-700 flex gap-2"><span className="text-gray-400 mt-0.5">•</span> <b>Resource Need:</b> Requires qualified instructor allocation</li>
-                        </ul>
+                ) : (
+                    <div className="space-y-4 flex-1">
+                        {(detail?.recommendations || []).map((rec: string, i: number) => (
+                            <div key={i} className={`bg-white border rounded-xl p-5 shadow-sm transition-all hover:shadow-md ${i === 0 ? "border-2 border-blue-500/20" : "border-gray-200"}`}>
+                                {i === 0 && <div className="absolute top-0 right-0 bg-blue-600 text-white text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-bl-lg shadow-sm">Primary Action</div>}
+                                <h5 className="font-bold text-gray-900 text-sm mb-2">Recommendation {i + 1}</h5>
+                                <p className="text-[13px] text-gray-700 leading-relaxed">{rec}</p>
+                            </div>
+                        ))}
+                        {(!detail?.recommendations || detail.recommendations.length === 0) && (
+                            <div className="text-center py-10">
+                                <p className="text-xs text-gray-400 italic">No recommendations available for this skill gap.</p>
+                            </div>
+                        )}
                     </div>
-
-                    {/* Option 3 */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
-                        <h5 className="font-bold text-gray-900 text-sm mb-3">Incremental Integration across multiple modules</h5>
-                        <ul className="space-y-2 mb-0">
-                            <li className="text-[13px] text-gray-700 flex gap-2"><span className="text-gray-400 mt-0.5">•</span> <b>Expected Impact:</b> Gradual competency increase to ~55% over 2 years</li>
-                            <li className="text-[13px] text-gray-700 flex gap-2"><span className="text-gray-400 mt-0.5">•</span> <b>Effort Level:</b> Medium (High coordination across multiple lecturers)</li>
-                        </ul>
-                    </div>
-                </div>
+                )}
             </div>
         </div>
     );
