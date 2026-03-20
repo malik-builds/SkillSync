@@ -47,6 +47,7 @@ export type AppTag =
 
 export interface RecruiterApplication {
   id: string;
+  candidateId: string;
   candidateName: string;
   candidateInitials: string;
   avatarColor: string;

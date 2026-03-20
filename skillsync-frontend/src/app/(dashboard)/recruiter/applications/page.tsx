@@ -8,6 +8,7 @@ import {
     ChevronRight, ArrowUpDown, Tag, X,
 } from "lucide-react";
 import { RecruiterStage, AppTag, RecruiterApplication } from "@/types/recruiter";
+import { CandidateProfileModal } from "@/components/recruiter/CandidateProfileModal";
 import { useApi } from "@/lib/hooks/useApi";
 import { getRecruiterApplications, RecruiterApplicationsResponse, createConversation, updateApplicationStage } from "@/lib/api/recruiter-api";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -482,8 +483,9 @@ export default function RecruiterApplicationsPage() {
     const [sortBy, setSortBy] = useState<"date" | "match" | "name">("date");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
     const [selected, setSelected] = useState<Set<string>>(new Set());
-    const [msgTarget, setMsgTarget] = useState<Application | null>(null);
+    const [msgTarget, setMsgTarget] = useState<RecruiterApplication | null>(null);
     const [toast, setToast] = useState<string | null>(null);
+    const [viewCandidateId, setViewCandidateId] = useState<string | null>(null);
 
     useEffect(() => {
         setFilterJob(urlJobId || "all");
@@ -785,7 +787,14 @@ export default function RecruiterApplicationsPage() {
                                         onStageChange={updateStage}
                                         onTagChange={updateTags}
                                         onMessage={setMsgTarget}
-                                        onView={id => showToast(`Opening ${apps.find(a => a.id === id)?.candidateName}'s profile…`)}
+                                        onView={id => {
+                                            const app = apps.find(a => a.id === id);
+                                            if (app && app.candidateId) {
+                                                setViewCandidateId(app.candidateId);
+                                            } else {
+                                                showToast("Candidate profile unavailable.");
+                                            }
+                                        }}
                                     />
                                 ))}
                             </tbody>
@@ -806,6 +815,14 @@ export default function RecruiterApplicationsPage() {
                 <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-3 rounded-lg shadow-xl flex items-center gap-2">
                     <CheckCircle size={14} className="text-green-400 flex-shrink-0" /> {toast}
                 </div>
+            )}
+
+            {/* Profile Modal */}
+            {viewCandidateId && (
+                <CandidateProfileModal
+                    candidateId={viewCandidateId}
+                    onClose={() => setViewCandidateId(null)}
+                />
             )}
         </div>
     );

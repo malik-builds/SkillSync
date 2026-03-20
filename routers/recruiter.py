@@ -125,6 +125,7 @@ async def format_application(app: Application, student: Optional[Student], job: 
         "note": app.notes[-1]["text"] if app.notes else None,
         "recruiterRating": 0,
         "studentEmail": app.student_email,
+        "candidateId": str(student.id) if student else "",
     }
 
 async def format_job(j: RecruiterJob, profile: RecruiterProfile) -> dict:

@@ -11,6 +11,7 @@ import { Candidate } from "@/types/recruiter";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { searchTalent, createConversation } from "@/lib/api/recruiter-api";
 import { Send } from "lucide-react";
+import { CandidateProfileModal } from "@/components/recruiter/CandidateProfileModal";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -32,12 +33,13 @@ function matchColor(score: number) {
 // ─── Candidate Card ─────────────────────────────────────────────────────────────
 
 function CandidateCard({
-    candidate, onSave, onMessage, onInvite,
+    candidate, onSave, onMessage, onInvite, onViewProfile,
 }: {
     candidate: Candidate;
     onSave: (id: string) => void;
     onMessage: (id: string) => void;
     onInvite?: (id: string) => void;
+    onViewProfile: (id: string) => void;
 }) {
     const isTopMatch = candidate.matchScore >= 90;
     const matchTextColor = candidate.matchScore >= 85 ? "text-green-600"
@@ -133,6 +135,7 @@ function CandidateCard({
                     {candidate.saved ? "Saved" : "Save"}
                 </button>
                 <button
+                    onClick={() => onViewProfile(candidate.id)}
                     className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-600 hover:border-gray-400 bg-white transition-colors"
                 >
                     <ExternalLink size={13} /> View Profile
@@ -322,6 +325,7 @@ export default function FindTalentPage() {
     const [messageTarget, setMessageTarget] = useState<{ id: string, initialMessage?: string } | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [savedSearches, setSavedSearches] = useState<string[]>([]);
+    const [viewCandidateId, setViewCandidateId] = useState<string | null>(null);
 
     // ── Core fetch function ─────────────────────────────────────────────────
     // Called on mount (no filters) and whenever user clicks Apply / Search.
@@ -809,7 +813,7 @@ export default function FindTalentPage() {
                         ) : (
                             <div className="space-y-3">
                                 {filtered.map(c => (
-                                    <CandidateCard key={c.id} candidate={c} onSave={toggleSave} onMessage={messageCandidate} onInvite={inviteCandidate} />
+                                    <CandidateCard key={c.id} candidate={c} onSave={toggleSave} onMessage={messageCandidate} onInvite={inviteCandidate} onViewProfile={setViewCandidateId} />
                                 ))}
                             </div>
                         )}
@@ -831,6 +835,14 @@ export default function FindTalentPage() {
                         initialMessage={messageTarget.initialMessage}
                         onClose={() => setMessageTarget(null)}
                         onSuccess={(msg) => showToast(msg)}
+                    />
+                )}
+
+                {/* Profile Modal */}
+                {viewCandidateId && (
+                    <CandidateProfileModal
+                        candidateId={viewCandidateId}
+                        onClose={() => setViewCandidateId(null)}
                     />
                 )}
 
