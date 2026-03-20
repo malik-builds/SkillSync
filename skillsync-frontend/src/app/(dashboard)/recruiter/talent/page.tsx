@@ -309,10 +309,8 @@ export default function FindTalentPage() {
     const [gradYears, setGradYears] = useState<number[]>([]);
     const [experience, setExperience] = useState<string>("");
     const [githubActive, setGithubActive] = useState(false);
-    const [locations, setLocations] = useState<string[]>([]);
     const [salaryMin, setSalaryMin] = useState(0);
     const [salaryMax, setSalaryMax] = useState(150);
-    const [availability, setAvailability] = useState<string[]>([]);
     const [sortBy, setSortBy] = useState<"match" | "score" | "recent">("match");
 
     // ── Data state ──────────────────────────────────────────────────────────
@@ -337,10 +335,8 @@ export default function FindTalentPage() {
         gradYears?: number[];
         experience?: string;
         githubActive?: boolean;
-        locations?: string[];
         salaryMin?: number;
         salaryMax?: number;
-        availability?: string[];
     }) => {
         setLoading(true);
         setError(null);
@@ -353,10 +349,8 @@ export default function FindTalentPage() {
                 gradYears: params.gradYears ?? [],
                 experience: params.experience ?? "",
                 githubActive: params.githubActive ?? false,
-                locations: params.locations ?? [],
                 salaryMin: params.salaryMin ?? 0,
                 salaryMax: params.salaryMax ?? 150,
-                availability: (params.availability ?? []).join(","),
             });
             setCandidates(data.candidates);
         } catch (e: unknown) {
@@ -380,14 +374,12 @@ export default function FindTalentPage() {
                 gradYears,
                 experience,
                 githubActive,
-                locations,
                 salaryMin,
                 salaryMax,
-                availability,
             });
         }, 400);
         return () => clearTimeout(timeoutId);
-    }, [searchSkills, niceToHave, universities, gradYears, experience, githubActive, locations, salaryMin, salaryMax, availability]);
+    }, [searchSkills, niceToHave, universities, gradYears, experience, githubActive, salaryMin, salaryMax]);
 
     const applyFilters = () => {
         doSearch({
@@ -397,10 +389,8 @@ export default function FindTalentPage() {
             gradYears,
             experience,
             githubActive,
-            locations,
             salaryMin,
             salaryMax,
-            availability,
         });
     };
 
@@ -438,10 +428,8 @@ export default function FindTalentPage() {
         setGradYears([]);
         setExperience("");
         setGithubActive(false);
-        setLocations([]);
         setSalaryMin(0);
         setSalaryMax(150);
-        setAvailability([]);
         doSearch(); // re-fetch with no filters
     };
 
@@ -468,18 +456,8 @@ export default function FindTalentPage() {
             if (gradYears.length && !gradYears.includes(c.graduatingYear)) return false;
             if (experience && c.experience !== experience) return false;
             if (githubActive && (!c.github || !c.github.active)) return false;
-            if (locations.length) {
-                const locLower = c.location.toLowerCase();
-                const anyMatch = locations.some(l =>
-                    l.toLowerCase() === "remote"
-                        ? locLower.includes("remote")
-                        : locLower.includes(l.toLowerCase())
-                );
-                if (!anyMatch) return false;
-            }
             if ((c.salaryMin > 0 || c.salaryMax > 0) &&
                 (c.salaryMin > salaryMax || c.salaryMax < salaryMin)) return false;
-            if (availability.length && !availability.includes(c.availabilityStatus)) return false;
             return true;
         });
 
@@ -508,7 +486,7 @@ export default function FindTalentPage() {
         else sorted = [...sorted].sort((a, b) => (b.graduatingYear ?? 0) - (a.graduatingYear ?? 0));
 
         return sorted;
-    }, [candidates, searchSkills, niceToHave, universities, gradYears, experience, githubActive, locations, salaryMin, salaryMax, availability, sortBy]);
+    }, [candidates, searchSkills, niceToHave, universities, gradYears, experience, githubActive, salaryMin, salaryMax, sortBy]);
 
 
 
@@ -708,21 +686,6 @@ export default function FindTalentPage() {
                                 </label>
                             </FilterSection>
 
-                            {/* Location */}
-                            <FilterSection title="Location">
-                                {LOCS.map(l => (
-                                    <label key={l} className="flex items-center gap-2 py-1 cursor-pointer group">
-                                        <input
-                                            type="checkbox"
-                                            checked={locations.includes(l)}
-                                            onChange={() => toggleCheckbox(locations, l, setLocations)}
-                                            className="accent-blue-600 w-3.5 h-3.5"
-                                        />
-                                        <span className="text-xs text-gray-600 group-hover:text-gray-900">{l}</span>
-                                    </label>
-                                ))}
-                            </FilterSection>
-
                             {/* Salary range */}
                             <FilterSection title="Expected Salary (LKR k)">
                                 <div className="space-y-2 pb-1">
@@ -741,21 +704,6 @@ export default function FindTalentPage() {
                                         className="w-full accent-blue-600"
                                     />
                                 </div>
-                            </FilterSection>
-
-                            {/* Availability */}
-                            <FilterSection title="Availability">
-                                {AVAIL.map(a => (
-                                    <label key={a} className="flex items-center gap-2 py-1 cursor-pointer group">
-                                        <input
-                                            type="checkbox"
-                                            checked={availability.includes(a)}
-                                            onChange={() => toggleCheckbox(availability, a, setAvailability)}
-                                            className="accent-blue-600 w-3.5 h-3.5"
-                                        />
-                                        <span className="text-xs text-gray-600 group-hover:text-gray-900">{a}</span>
-                                    </label>
-                                ))}
                             </FilterSection>
                         </div>
 
