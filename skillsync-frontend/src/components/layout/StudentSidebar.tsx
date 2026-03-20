@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useApi } from "@/lib/hooks/useApi";
+import { getStudentProfile } from "@/lib/api/student-api";
 
 import {
     LayoutDashboard,
@@ -43,6 +45,26 @@ export function StudentSidebar({ className, disabled = false }: StudentSidebarPr
     const router = useRouter();
     const { user, logout } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
+    const [avatarUrl, setAvatarUrl] = useState<string>(user?.avatar || "");
+    const { data: sidebarProfile } = useApi(() => getStudentProfile(), []);
+
+    useEffect(() => {
+        if (sidebarProfile?.avatarUrl) {
+            setAvatarUrl(sidebarProfile.avatarUrl);
+            return;
+        }
+        setAvatarUrl(user?.avatar || "");
+    }, [sidebarProfile?.avatarUrl, user?.avatar]);
+
+    useEffect(() => {
+        const onAvatarUpdated = (event: Event) => {
+            const customEvent = event as CustomEvent<{ avatarUrl?: string }>;
+            setAvatarUrl(customEvent.detail?.avatarUrl || "");
+        };
+
+        window.addEventListener("student-avatar-updated", onAvatarUpdated as EventListener);
+        return () => window.removeEventListener("student-avatar-updated", onAvatarUpdated as EventListener);
+    }, []);
 
     const handleLogout = () => {
         logout();
@@ -152,8 +174,12 @@ export function StudentSidebar({ className, disabled = false }: StudentSidebarPr
 
                     {/* Mini User Profile */}
                     <div className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50 border border-gray-100">
-                        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
-                            {initials}
+                        <div className="w-9 h-9 rounded-full bg-blue-100 shrink-0 overflow-hidden flex items-center justify-center text-blue-600 font-bold text-sm">
+                            {avatarUrl ? (
+                                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                            ) : (
+                                initials
+                            )}
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-900 truncate">{user?.fullName || "Student"}</p>

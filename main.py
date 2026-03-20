@@ -169,6 +169,9 @@ async def analyze_student_endpoint(
     
     final_state = await graph.app.ainvoke(initial_state)
 
+    response_extracted = final_state.get("extracted_data")
+    response_gap_report = dict(final_state.get("gap_report", {}) or {})
+
     # Save to Database
     if current_user.role == "student":
         student = await models.Student.find_one(models.Student.email == current_user.email)
@@ -176,7 +179,22 @@ async def analyze_student_endpoint(
             extracted = final_state.get("extracted_data", {})
             
             # Update core attributes
-            student.skills = extracted.get("skills", [])
+            merged_skills = services.merge_skills_preserving_existing(student.skills, extracted.get("skills", []))
+            student.skills = merged_skills
+            existing_skill_keys = {
+                str(skill).strip().lower()
+                for skill in merged_skills
+                if str(skill).strip()
+            }
+
+            # Hide already-owned skills from post-upload gap lists.
+            for key in ["missing_critical", "missing_nice_to_have"]:
+                raw_list = response_gap_report.get(key, [])
+                if isinstance(raw_list, list):
+                    response_gap_report[key] = [
+                        skill for skill in raw_list
+                        if str(skill).strip().lower() not in existing_skill_keys
+                    ]
             student.github_url = github_url or extracted.get("contact_info", {}).get("github", student.github_url)
             
             # Update name if default
@@ -194,10 +212,17 @@ async def analyze_student_endpoint(
             student.project_experience = extracted.get("project_experience", [])
             student.education_history = extracted.get("education_history", [])
             
-            student.extracted_data = extracted
-            student.extracted_data["github_report"] = final_state.get("github_report")
-            student.extracted_data["gap_report"] = final_state.get("gap_report", {})
-            student.ai_insights = final_state.get("gap_report", {})
+            existing_extracted = student.extracted_data or {}
+            merged_extracted = dict(existing_extracted)
+            merged_extracted.update(extracted)
+            merged_extracted["skills"] = merged_skills
+            merged_extracted["github_report"] = final_state.get("github_report")
+            merged_extracted["gap_report"] = response_gap_report
+            merged_extracted["market_requirements"] = final_state.get("market_requirements", {})
+            merged_extracted["cv_filename"] = file.filename
+            student.extracted_data = merged_extracted
+            response_extracted = merged_extracted
+            student.ai_insights = response_gap_report
             student.career_roadmap = final_state.get("market_requirements", {})
 
             await student.save()
@@ -209,9 +234,9 @@ async def analyze_student_endpoint(
 
     # We return the items from the final state
     return {
-        "extracted_data": final_state.get("extracted_data"),
+        "extracted_data": response_extracted,
         "market_requirements": final_state.get("market_requirements"),
-        "gap_report": final_state.get("gap_report"),
+        "gap_report": response_gap_report,
         "github_report": final_state.get("github_report"),
         "status": final_state.get("status")
     }

@@ -261,6 +261,7 @@ export default function SettingsPage() {
             const compressedFile = await compressAvatarImage(file);
             const result = await uploadAvatar(compressedFile);
             setProfile((prev) => ({ ...prev, avatarUrl: result.avatarUrl || prev.avatarUrl }));
+            window.dispatchEvent(new CustomEvent("student-avatar-updated", { detail: { avatarUrl: result.avatarUrl || "" } }));
             setMessage("Profile photo updated.");
         } catch (err: any) {
             const apiMessage = err?.error || err?.message;
@@ -281,6 +282,7 @@ export default function SettingsPage() {
             setError("");
             await removeAvatar();
             setProfile((prev) => ({ ...prev, avatarUrl: "" }));
+            window.dispatchEvent(new CustomEvent("student-avatar-updated", { detail: { avatarUrl: "" } }));
             setMessage("Profile photo removed.");
         } catch (err: any) {
             const apiMessage = err?.error || err?.message;

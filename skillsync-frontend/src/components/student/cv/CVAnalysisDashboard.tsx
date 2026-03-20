@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ScoreGauge } from "./ScoreGauge";
-import { AlertTriangle, CheckCircle2, XCircle, Sparkles, Download } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { addSkillToLearningPath } from "@/lib/api/student-api";
 import type { AnalysisResponse } from "@/types/user";
 
 interface CVAnalysisDashboardProps {
@@ -14,7 +16,9 @@ interface CVAnalysisDashboardProps {
 }
 
 export function CVAnalysisDashboard({ result, file, targetRole, onReset }: CVAnalysisDashboardProps) {
+    const router = useRouter();
     const [isFixing, setIsFixing] = useState(false);
+    const [fixError, setFixError] = useState<string | null>(null);
 
     const score = result.gap_report?.score ?? 0;
     const missingCritical = result.gap_report?.missing_critical ?? [];
@@ -29,10 +33,27 @@ export function CVAnalysisDashboard({ result, file, targetRole, onReset }: CVAna
 
     // Critical missing skills
     const missingKeywords = missingCritical.slice(0, 8);
+    const allListedMissingSkills = Array.from(
+        new Set(
+            [...missingCritical, ...missingNiceToHave]
+                .map((skill) => String(skill || "").trim())
+                .filter(Boolean)
+        )
+    );
 
-    const handleAutoFix = () => {
+    const handleAutoFix = async () => {
+        setFixError(null);
         setIsFixing(true);
-        setTimeout(() => setIsFixing(false), 2000);
+        try {
+            if (allListedMissingSkills.length > 0) {
+                await Promise.all(allListedMissingSkills.map((skill) => addSkillToLearningPath(skill)));
+            }
+            router.push("/student/learning-path");
+        } catch (e: any) {
+            setFixError(e?.error || e?.detail || e?.message || "Failed to build learning path.");
+        } finally {
+            setIsFixing(false);
+        }
     };
 
     return (
@@ -54,9 +75,6 @@ export function CVAnalysisDashboard({ result, file, targetRole, onReset }: CVAna
                                 className="px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-sm font-bold border border-red-200 transition-colors"
                             >
                                 Re-upload
-                            </button>
-                            <button className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold border border-gray-300 transition-colors flex items-center gap-2">
-                                <Download size={16} /> Download
                             </button>
                         </div>
                     </div>
@@ -149,8 +167,9 @@ export function CVAnalysisDashboard({ result, file, targetRole, onReset }: CVAna
                             disabled={isFixing}
                             className="w-full mt-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                         >
-                            {isFixing ? "Generating plan..." : <><Sparkles size={16} /> Get Learning Plan</>}
+                            {isFixing ? "Adding skills and redirecting..." : <><Sparkles size={16} /> Get Learning Plan</>}
                         </button>
+                        {fixError && <p className="mt-3 text-xs text-red-600">{fixError}</p>}
                     </GlassCard>
                 )}
 

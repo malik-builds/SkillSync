@@ -12,11 +12,60 @@ from routers.message_models import Conversation, Message
 from services import SKILL_ONTOLOGY
 import services
 import math
+import re
 
 # ─── Null-safety helpers – use everywhere in this file ────────────────────────
 def sl(val): """Safe list"""; return val if val is not None else []
 def sn(val): """Safe number"""; return val if val is not None else 0
 def ss(val): """Safe string"""; return val if val is not None else ""
+
+def skill_slug(value: str) -> str:
+    """Create URL-safe IDs for learning path and node identifiers."""
+    base = re.sub(r"[^a-z0-9]+", "_", ss(value).strip().lower())
+    return base.strip("_") or "skill"
+
+def normalize_skill_text(value: str) -> str:
+    text = ss(value).strip().lower()
+    text = re.sub(r"[()\[\]{}]", " ", text)
+    text = text.replace("/", " ").replace("&", " and ")
+    text = re.sub(r"[^a-z0-9+\s]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+def build_skill_aliases(value: str) -> set:
+    """Generate comparable aliases so composite skill names match concrete skill names."""
+    raw = ss(value).strip()
+    normalized = normalize_skill_text(raw)
+    aliases = {normalized} if normalized else set()
+
+    # Include base name without parenthetical qualifiers.
+    base_name = normalize_skill_text(re.sub(r"\([^)]*\)", " ", raw))
+    if base_name:
+        aliases.add(base_name)
+
+    # Include sub-skills from parenthetical groups like (SQL/NoSQL).
+    for group in re.findall(r"\(([^)]*)\)", raw):
+        for part in re.split(r"[/,|]", group):
+            part_norm = normalize_skill_text(part)
+            if part_norm:
+                aliases.add(part_norm)
+
+    return aliases
+
+def skill_exists_in_profile(skill_name: str, profile_skills: set) -> bool:
+    aliases = build_skill_aliases(skill_name)
+    if not aliases:
+        return False
+    if aliases & profile_skills:
+        return True
+
+    # Fallback fuzzy containment for close variants.
+    for alias in aliases:
+        if len(alias) < 3:
+            continue
+        for existing in profile_skills:
+            if alias in existing or existing in alias:
+                return True
+    return False
 
 router = APIRouter()
 
@@ -223,8 +272,9 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
             company = ss(job.company) if job else "a company"
             title = ss(job.title) if job else "a job"
             label, color = STATUS_LABELS.get(ss(app.status), ("Applied", "blue"))
+            activity_title = f"Applied to {title}" if label == "Applied" else f"{label}: {title}"
             activities.append({
-                "title": f"{label}: {title}",
+                "title": activity_title,
                 "subtitle": company,
                 "color": color,
                 "ts": app.applied_at.timestamp() if app.applied_at else 0,
@@ -283,6 +333,12 @@ async def get_analysis(current_user: User = Depends(get_current_user)):
     try:
         student = await get_student_doc(current_user)
         extracted = student.extracted_data or {}
+        existing_skill_keys = {
+            alias
+            for skill in sl(student.skills)
+            for alias in build_skill_aliases(skill)
+            if alias
+        }
         target_role = current_user.target_role if getattr(current_user, "target_role", "") else "Software Engineer"
         if not extracted:
             return {
@@ -312,7 +368,10 @@ async def get_analysis(current_user: User = Depends(get_current_user)):
             score_val = min(100, matched_count * 25) if matched_count > 0 else 0
             radar_data.append({"subject": category, "A": score_val, "B": 75, "fullMark": 100})
             
-        missing_critical = sl(gap_report.get("missing_critical", []))
+        missing_critical = [
+            skill for skill in sl(gap_report.get("missing_critical", []))
+            if not skill_exists_in_profile(skill, existing_skill_keys)
+        ]
         verified_skills = [
             s for s in sl(student.skills)
             if isinstance(s, str) and s.strip().lower() in github_verified_skills
@@ -345,7 +404,16 @@ async def get_analysis_gaps(current_user: User = Depends(get_current_user)):
     try:
         student = await get_student_doc(current_user)
         gap_report = student.extracted_data.get("gap_report", {}) if student.extracted_data else {}
-        missing_crit = sl(gap_report.get("missing_critical", []))
+        existing_skill_keys = {
+            alias
+            for skill in sl(student.skills)
+            for alias in build_skill_aliases(skill)
+            if alias
+        }
+        missing_crit = [
+            skill for skill in sl(gap_report.get("missing_critical", []))
+            if not skill_exists_in_profile(skill, existing_skill_keys)
+        ]
         
         gaps = []
         for i, skill in enumerate(missing_crit):
@@ -929,6 +997,35 @@ async def add_profile_skill(data: dict = Body(...), current_user: User = Depends
         print(f"[ERROR]: {e}")
         raise HTTPException(500, "Internal error")
 
+@router.post("/profile/skills/remove")
+async def remove_profile_skill(data: dict = Body(...), current_user: User = Depends(get_current_user)):
+    try:
+        student = await get_student_doc(current_user)
+        skill_name = ss(data.get("name") or data.get("skill")).strip()
+        if not skill_name:
+            raise HTTPException(400, "Skill name is required")
+
+        skill_key = skill_name.lower()
+        existing_skills = sl(student.skills)
+        student.skills = [s for s in existing_skills if ss(s).strip().lower() != skill_key]
+
+        extracted = student.extracted_data or {}
+
+        # Remove from all profile/learning bookkeeping lists so UI stays consistent.
+        for key in ["manual_profile_skills", "completed_learning_skills", "manual_learning_skills"]:
+            values = sl(extracted.get(key, []))
+            extracted[key] = [s for s in values if ss(s).strip().lower() != skill_key]
+
+        student.extracted_data = extracted
+        await student.save()
+
+        return await get_profile(current_user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        raise HTTPException(500, "Internal error")
+
 @router.post("/profile/verify-github")
 async def verify_github_profile(current_user: User = Depends(get_current_user)):
     try:
@@ -1131,6 +1228,12 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
         extracted = student.extracted_data or {}
         gap_report = extracted.get("gap_report", {})
         market_reqs = extracted.get("market_requirements", {})
+        profile_skills = {
+            alias
+            for skill in sl(student.skills)
+            for alias in build_skill_aliases(skill)
+            if alias
+        }
         
         missing_crit = sl(gap_report.get("missing_critical", []))
         must_haves = sl(market_reqs.get("must_have", []))
@@ -1140,10 +1243,11 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
         
         def make_nodes(skill):
             """Generate simple task nodes for a skill"""
+            slug = skill_slug(skill)
             return [
-                {"id": f"n_{skill.lower().replace(' ','_')}_1", "title": f"Study {skill} Basics", "status": "locked", "type": "task", "description": f"Research and understand the fundamental concepts of {skill}.", "skills": [skill]},
-                {"id": f"n_{skill.lower().replace(' ','_')}_2", "title": f"Implement {skill} in a Project", "status": "locked", "type": "task", "description": f"Apply your {skill} knowledge by building a small practical project.", "skills": [skill]},
-                {"id": f"n_{skill.lower().replace(' ','_')}_3", "title": f"Verify {skill} Proficiency", "status": "locked", "type": "task", "description": f"Complete a self-assessment or peer review to confirm your mastery of {skill}.", "skills": [skill]}
+                {"id": f"n_{slug}_1", "title": f"Study {skill} Basics", "status": "locked", "type": "task", "description": f"Research and understand the fundamental concepts of {skill}.", "skills": [skill]},
+                {"id": f"n_{slug}_2", "title": f"Implement {skill} in a Project", "status": "locked", "type": "task", "description": f"Apply your {skill} knowledge by building a small practical project.", "skills": [skill]},
+                {"id": f"n_{slug}_3", "title": f"Verify {skill} Proficiency", "status": "locked", "type": "task", "description": f"Complete a self-assessment or peer review to confirm your mastery of {skill}.", "skills": [skill]}
             ]
         
         dynamic_paths = []
@@ -1155,9 +1259,11 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
             if not skill_name:
                 continue
             skill_key = skill_name.lower()
+            if skill_exists_in_profile(skill_name, profile_skills):
+                continue
             if skill_key in added_skills:
                 continue
-            path_id = f"path_manual_{skill_key.replace(' ', '_')}"
+            path_id = f"path_manual_{skill_slug(skill_name)}"
             nodes = make_nodes(skill_name)
             if nodes:
                 nodes[0]["status"] = "in-progress"
@@ -1179,9 +1285,11 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
 
         # 2. Generate paths for missing critical skills (high priority)
         for i, skill in enumerate(missing_crit[:3]):
+            if skill_exists_in_profile(skill, profile_skills):
+                continue
             if ss(skill).lower() in added_skills:
                 continue
-            path_id = f"path_gap_{i}_{skill.lower().replace(' ', '_')}"
+            path_id = f"path_gap_{i}_{skill_slug(skill)}"
             nodes = make_nodes(skill)
             # Mark first node as active
             if nodes:
@@ -1206,8 +1314,10 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
         for skill in must_haves:
             if len(dynamic_paths) >= 4:
                 break
+            if skill_exists_in_profile(skill, profile_skills):
+                continue
             if skill.lower() not in added_skills:
-                path_id = f"path_req_{skill.lower().replace(' ', '_')}"
+                path_id = f"path_req_{skill_slug(skill)}"
                 nodes = make_nodes(skill)
                 if nodes:
                     nodes[0]["status"] = "in-progress"
@@ -1313,6 +1423,16 @@ async def add_skill_to_learning_path(data: dict = Body(...), current_user: User 
         student = await get_student_doc(current_user)
         extracted = student.extracted_data or {}
         manual_skills = sl(extracted.get("manual_learning_skills", []))
+        profile_skill_keys = {
+            alias
+            for skill in sl(student.skills)
+            for alias in build_skill_aliases(skill)
+            if alias
+        }
+
+        # Do not add a learning path for a skill the student already has.
+        if skill_exists_in_profile(skill_name, profile_skill_keys):
+            return {"success": True, "alreadyAdded": True}
 
         existing = {ss(s).strip().lower() for s in manual_skills if ss(s).strip()}
         if skill_name.lower() in existing:
