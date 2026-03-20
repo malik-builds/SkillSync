@@ -384,7 +384,12 @@ class GapAnalysisTool:
         repo_evidence = []
         total_repos = 0
         if github_report:
-            gh_stats = github_report.get("portfolio_analysis", {}).get("aggregate_stats", {})
+            # Try root access first (modern format)
+            gh_stats = github_report.get("aggregate_stats", {})
+            if not gh_stats:
+                # Fallback to legacy nested format
+                gh_stats = github_report.get("portfolio_analysis", {}).get("aggregate_stats", {})
+                
             total_repos = gh_stats.get("total_repos", 0)
             if total_repos >= 20: 
                 gh_points = 40
@@ -448,12 +453,22 @@ class GapAnalysisTool:
         
         total_repos = 0
         if github_report:
-            gh_stats = github_report.get("portfolio_analysis", {}).get("aggregate_stats", {})
+            # Try root access first (modern format)
+            gh_stats = github_report.get("aggregate_stats", {})
+            if not gh_stats:
+                # Fallback to legacy nested format
+                gh_stats = github_report.get("portfolio_analysis", {}).get("aggregate_stats", {})
+                
             total_repos = gh_stats.get("total_repos", 0)
             
             for lang in gh_stats.get("languages", {}):
                 skill_pool.add(lang.lower())
-            for repo in github_report.get("portfolio_analysis", {}).get("repositories", []):
+            
+            # AI report contains project overview
+            ai_report = github_report.get("ai_portfolio_audit", {})
+            repos = ai_report.get("all_projects_overview", []) or github_report.get("portfolio_analysis", {}).get("repositories", [])
+            
+            for repo in repos:
                 name = repo.get("name", "").lower()
                 skill_pool.add(name)
                 skill_pool.add(name.replace("-", " ").replace("_", " "))

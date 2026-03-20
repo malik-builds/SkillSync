@@ -27,20 +27,41 @@ async def compute_university_analytics(institution: str):
     students = await Student.find(Student.institution == institution).to_list()
     total_students = len(students)
     if total_students == 0:
-        return None
+        return {
+            "totalStudents": 0,
+            "avgScore": 0,
+            "placedCount": 0,
+            "placementRate": 0,
+            "skillsFreq": {},
+            "missingFreq": {},
+            "avgProfile": 0,
+            "avgGithub": 0,
+            "avgCv": 0,
+        }
 
     total_score = 0
     skills_freq: dict = {}
     missing_freq: dict = {}
     placed_count = 0
+    github_count = 0
+    cv_count = 0
+    profile_count = 0
 
     for s in students:
         ext = s.extracted_data or {}
+        if ext:
+            profile_count += 1
+            
+        if s.github_url:
+            github_count += 1
+            
+        if ext.get("cv_filename"):
+            cv_count += 1
+
         gap = ext.get("gap_report", {}) or {}
         score = gap.get("score", 0) or 0
         total_score += score
 
-        # Count as placed if they have a high score (>= 70)
         if score >= 70:
             placed_count += 1
 
@@ -58,9 +79,12 @@ async def compute_university_analytics(institution: str):
         "totalStudents": total_students,
         "avgScore": avg_score,
         "placedCount": placed_count,
-        "placementRate": round((placed_count / total_students) * 100, 1) if total_students else 0,
+        "placementRate": round((placed_count / total_students) * 100, 1),
         "skillsFreq": skills_freq,
         "missingFreq": missing_freq,
+        "avgProfile": round((profile_count / total_students) * 100, 1),
+        "avgGithub": round((github_count / total_students) * 100, 1),
+        "avgCv": round((cv_count / total_students) * 100, 1),
     }
 
 def make_radar_from_analytics(analytics: dict) -> list:
@@ -796,10 +820,13 @@ async def get_student_stats(current_user: User = Depends(require_university)):
         analytics = await compute_university_analytics(profile.institution_name)
         all_students = await Student.find(Student.institution == profile.institution_name).to_list()
         return {
-            "totalStudents": analytics["totalStudents"] if analytics else 0,
-            "activeProfiles": len([s for s in all_students if s.extracted_data]),
-            "avgMatchScore": analytics["avgScore"] if analytics else 0,
-            "placedStudents": analytics["placedCount"] if analytics else 0,
+            "totalStudents": analytics["totalStudents"],
+            "avgScore": analytics["avgScore"],
+            "avgProfile": analytics["avgProfile"],
+            "avgGithub": analytics["avgGithub"],
+            "avgCv": analytics["avgCv"],
+            "placedStudents": analytics["placedCount"],
+            "totalAtRisk": analytics["totalStudents"] - analytics["placedCount"]
         }
     except Exception as e:
         raise HTTPException(500, "Internal error")
@@ -809,9 +836,18 @@ async def get_programmes(current_user: User = Depends(require_university)):
     try:
         profile = await get_university_profile(current_user)
         analytics = await compute_university_analytics(profile.institution_name)
-        total = analytics["totalStudents"] if analytics else 0
-        avg = analytics["avgScore"] if analytics else 0
-        return [{"id": "all", "name": "All Programmes", "studentCount": total, "avgScore": avg}]
+        total = analytics["totalStudents"]
+        avg = analytics["avgScore"]
+        return [{
+            "id": "all",
+            "name": "All Programmes",
+            "students": total,
+            "avgScore": avg,
+            "atRisk": total - analytics["placedCount"],
+            "profileCompletion": analytics["avgProfile"],
+            "githubRate": analytics["avgGithub"],
+            "cvRate": analytics["avgCv"]
+        }]
     except Exception as e:
         raise HTTPException(500, "Internal error")
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from datetime import datetime
 from models import Student
 from fastapi.security import OAuth2PasswordRequestForm
@@ -180,8 +180,67 @@ async def reset_password(request: Request):
     return {"success": True}
 
 @router.post("/github/connect")
-async def github_connect(current_user: User = Depends(get_current_user)):
-    return {"success": True, "githubUrl": "https://github.com/connected"}
+async def github_connect(body: dict = Body(...), current_user: User = Depends(get_current_user)):
+    github_url = body.get("githubUrl")
+    if not github_url:
+        raise HTTPException(400, "githubUrl is required")
+
+    github_url = github_url.strip()
+    
+    if current_user.role == "student":
+        student = await Student.find_one(Student.email == current_user.email)
+        if not student:
+            raise HTTPException(404, "Student profile not found")
+
+        # 1. Save URL
+        student.github_url = github_url
+        
+        # 2. Perform Audit
+        from services import GitHubAuditorTool, GapAnalysisTool, MarketResearcherTool
+        
+        auditor = GitHubAuditorTool()
+        github_report = await auditor.audit_repo(github_url)
+        
+        # 3. Recompute Gap Report
+        extracted = student.extracted_data or {}
+        
+        # Determine target role (from User or fallback)
+        target_role = current_user.target_role or "Fullstack Developer"
+        market_requirements = extracted.get("market_requirements")
+        if not market_requirements:
+            market_requirements = await MarketResearcherTool().research(target_role)
+            extracted["market_requirements"] = market_requirements
+            
+        # Get University Info from profile or resume
+        edu = extracted.get("education_history", [])
+        uni_info = {"name": "", "degree": "", "gpa": 0.0}
+        if edu and isinstance(edu[0], dict):
+            first = edu[0]
+            uni_info = {
+                "name": first.get("institution", ""),
+                "degree": first.get("degree", ""),
+                "gpa": first.get("gpa", first.get("year", "0.0"))
+            }
+
+        gap_analyzer = GapAnalysisTool()
+        gap_report = gap_analyzer.analyze_weighted_gap(
+            student_skills=student.skills,
+            market_requirements=market_requirements,
+            github_report=github_report,
+            university_info=uni_info
+        )
+        
+        # 4. Save everything
+        extracted["github_report"] = github_report
+        extracted["gap_report"] = gap_report
+        student.extracted_data = extracted
+        student.ai_insights = gap_report
+        
+        await student.save()
+        
+        return {"success": True, "githubUrl": github_url, "score": gap_report.get("score")}
+    
+    return {"success": True, "githubUrl": github_url}
 
 @router.post("/linkedin/connect")
 async def linkedin_connect(current_user: User = Depends(get_current_user)):

@@ -167,8 +167,10 @@ export default function OnboardingPage() {
                 const result = await analyzeProfile(cvFile, githubUrlInput || undefined, selectedRole);
                 setAnalysisResult(result);
             } else {
-                // No CV — just save the target role and finish onboarding.
-                // They can upload their CV later from the dashboard.
+                // No CV — save target role and GitHub if provided
+                if (githubUrlInput) {
+                    await connectGitHub(githubUrlInput);
+                }
                 await setTargetRole(selectedRole);
             }
             await finishOnboarding();
