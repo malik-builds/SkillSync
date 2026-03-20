@@ -89,20 +89,6 @@ export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
                     {manualSkills.map((skill, i) => (
                         <SkillBadge key={`m-${skill.name}-${i}`} skill={skill} />
                     ))}
-
-                    {/* Add New Skill CTA */}
-                    <button
-                        onClick={() => {
-                            setAddSkillError("");
-                            setNewSkill("");
-                        }}
-                        className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 hover:bg-white text-gray-500 hover:text-gray-900 transition-colors group"
-                    >
-                        <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center group-hover:bg-blue-50 border border-gray-200 group-hover:border-blue-100 transition-colors">
-                            +
-                        </span>
-                        <span className="text-sm font-medium">Add Skill</span>
-                    </button>
                 </div>
                 <div className="mt-3 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
                     <input
