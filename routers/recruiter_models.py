@@ -30,7 +30,7 @@ class RecruiterJob(Document):
     work_type: str = "OnSite"   # OnSite, Remote, Hybrid
     type: str = "Full-time"
     department: str = "Engineering"
-    status: str = "active"      # active, closed, draft
+    status: str = "active"      # active, closed, draft, archived, filled
     salary_min: int = 0
     salary_max: int = 0
     deadline: str = ""

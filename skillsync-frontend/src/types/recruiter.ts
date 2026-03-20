@@ -1,5 +1,5 @@
 // ── Job types ──────────────────────────────────────────────
-export type JobStatus = "Active" | "Draft" | "Closed";
+export type JobStatus = "Active" | "Draft" | "Closed" | "Archived" | "Filled";
 export type WorkType = "OnSite" | "Remote" | "Hybrid";
 
 export interface RecruiterJob {

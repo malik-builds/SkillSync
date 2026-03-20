@@ -6,11 +6,11 @@ import {
     Briefcase, Plus, Search, MapPin, DollarSign, Clock,
     Eye, Edit2, Copy, XCircle, Calendar, CheckCircle,
     Archive, Trash2, MoreHorizontal, ChevronDown,
-    Users, Star, TrendingUp, Target, Filter,
+    Users, Star, TrendingUp, Target, Filter, Send
 } from "lucide-react";
 import { RecruiterJob, JobStatus } from "@/types/recruiter";
 import { useApi } from "@/lib/hooks/useApi";
-import { getRecruiterJobs } from "@/lib/api/recruiter-api";
+import { getRecruiterJobs, deleteJob, updateJob, createJob } from "@/lib/api/recruiter-api";
 import { JobPostModal } from "@/components/recruiter/JobPostModal";
 
 type Job = RecruiterJob;
@@ -22,6 +22,8 @@ function StatusBadge({ status }: { status: JobStatus }) {
         Active: "bg-white text-green-700 border-green-300",
         Draft: "bg-white text-amber-700 border-amber-300",
         Closed: "bg-white text-gray-500 border-gray-300",
+        Archived: "bg-gray-100 text-gray-500 border-gray-300",
+        Filled: "bg-white text-indigo-700 border-indigo-300",
     };
     return (
         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${styles[status]}`}>
@@ -62,14 +64,26 @@ function MoreMenu({ job, onAction }: { job: Job; onAction: (action: string, id: 
         return () => document.removeEventListener("mousedown", handler);
     }, []);
 
-    const actions = [
-        { icon: Copy, label: "Duplicate Job", key: "duplicate", color: "text-gray-600" },
-        { icon: XCircle, label: "Close Applications", key: "close", color: "text-gray-600" },
-        { icon: Calendar, label: "Extend Deadline", key: "extend", color: "text-gray-600" },
-        { icon: CheckCircle, label: "Mark as Filled", key: "filled", color: "text-green-600" },
-        { icon: Archive, label: "Archive Job", key: "archive", color: "text-amber-600" },
-        { icon: Trash2, label: "Delete Job", key: "delete", color: "text-red-600" },
+    const isGhosted = job.status === "Closed" || job.status === "Archived" || job.status === "Filled";
+    const draftActions = [
+        { icon: Send, label: "Publish Job", key: "publish", color: "text-blue-600 hover:text-blue-700 hover:bg-blue-50" },
+        { icon: Copy, label: "Duplicate Job", key: "duplicate", color: "text-gray-600 hover:bg-gray-50" },
+        { icon: Trash2, label: "Delete Job", key: "delete", color: "text-red-600 hover:text-red-700 hover:bg-red-50" },
     ];
+    const closedActions = [
+        { icon: Send, label: "Republish Job", key: "publish", color: "text-blue-600 hover:text-blue-700 hover:bg-blue-50" },
+        { icon: Copy, label: "Duplicate Job", key: "duplicate", color: "text-gray-600 hover:bg-gray-50" },
+        { icon: Trash2, label: "Delete Job", key: "delete", color: "text-red-600 hover:text-red-700 hover:bg-red-50" },
+    ];
+    const activeActions = [
+        { icon: Copy, label: "Duplicate Job", key: "duplicate", color: "text-gray-600 hover:bg-gray-50" },
+        { icon: XCircle, label: "Close Applications", key: "close", color: "text-gray-600 hover:bg-gray-50" },
+        { icon: Calendar, label: "Extend Deadline", key: "extend", color: "text-gray-600 hover:bg-gray-50" },
+        { icon: CheckCircle, label: "Mark as Filled", key: "filled", color: "text-green-600 hover:text-green-700 hover:bg-green-50" },
+        { icon: Archive, label: "Archive Job", key: "archive", color: "text-amber-600 hover:text-amber-700 hover:bg-amber-50" },
+        { icon: Trash2, label: "Delete Job", key: "delete", color: "text-red-600 hover:text-red-700 hover:bg-red-50" },
+    ];
+    const actions = job.status === "Draft" ? draftActions : isGhosted ? closedActions : activeActions;
 
     return (
         <div className="relative" ref={ref}>
@@ -99,13 +113,13 @@ function MoreMenu({ job, onAction }: { job: Job; onAction: (action: string, id: 
 
 function JobRow({ job, onAction, onEdit }: { job: Job; onAction: (action: string, id: string) => void; onEdit: (job: Job) => void }) {
     const [expanded, setExpanded] = useState(false);
-    const isGhosted = job.status === "Closed";
+    const isGhosted = job.status === "Closed" || job.status === "Archived" || job.status === "Filled";
 
     return (
-        <div className={`bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden transition-opacity ${isGhosted ? "opacity-70" : ""}`}>
+        <div className={`bg-white border border-gray-200 rounded-lg shadow-sm transition-opacity relative ${isGhosted ? "opacity-70" : ""}`}>
             {/* Main row */}
             <div
-                className="flex items-start gap-4 px-5 py-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+                className={`flex items-start gap-4 px-5 py-4 cursor-pointer hover:bg-gray-50/50 transition-colors rounded-t-lg ${!expanded ? "rounded-b-lg" : ""}`}
                 onClick={() => setExpanded(e => !e)}
             >
                 {/* Icon */}
@@ -190,7 +204,7 @@ function JobRow({ job, onAction, onEdit }: { job: Job; onAction: (action: string
 
             {/* Expanded panel */}
             {expanded && (
-                <div className="border-t border-gray-100 bg-gray-50/40 px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="border-t border-gray-100 bg-gray-50/40 px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-5 rounded-b-lg">
                     {/* Application stage breakdown */}
                     <div>
                         <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Application Breakdown</p>
@@ -280,17 +294,44 @@ export default function MyJobsPage() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const handleAction = (action: string, id: string) => {
+    const handleAction = async (action: string, id: string) => {
         const job = allJobs.find(j => j.id === id);
-        const messages: Record<string, string> = {
-            duplicate: `"${job?.title}" duplicated successfully.`,
-            close: `Applications closed for "${job?.title}".`,
-            extend: `Deadline extended for "${job?.title}".`,
-            filled: `"${job?.title}" marked as filled.`,
-            archive: `"${job?.title}" archived.`,
-            delete: `"${job?.title}" deleted.`,
-        };
-        showToast(messages[action] ?? "Action completed.");
+        if (!job) return;
+
+        try {
+            if (action === "delete") {
+                await deleteJob(id);
+                showToast(`"${job.title}" deleted.`);
+                refetch();
+            } else if (action === "publish") {
+                await updateJob(id, { status: "active" as any });
+                showToast(`"${job.title}" is now active!`);
+                refetch();
+            } else if (action === "close") {
+                await updateJob(id, { status: "closed" as any });
+                showToast(`Applications closed for "${job.title}".`);
+                refetch();
+            } else if (action === "archive") {
+                await updateJob(id, { status: "archived" as any });
+                showToast(`"${job.title}" archived.`);
+                refetch();
+            } else if (action === "filled") {
+                await updateJob(id, { status: "filled" as any });
+                showToast(`"${job.title}" marked as filled.`);
+                refetch();
+            } else if (action === "duplicate") {
+                const { id: _id, stats, topCandidate, postedDaysAgo, ...rest } = job as any;
+                await createJob({ ...rest, title: `${job.title} (Copy)`, status: "draft" as any });
+                showToast(`"${job.title}" duplicated successfully.`);
+                refetch();
+            } else if (action === "extend") {
+                setJobToEdit(job);
+                setIsModalOpen(true);
+            }
+        } catch (err: any) {
+            console.error("Action failed:", err);
+            showToast(`Failed: ${err.message || "Unknown error"}`);
+        }
     };
 
     // Compute summary stats
@@ -299,6 +340,8 @@ export default function MyJobsPage() {
         active: allJobs.filter(j => j.status === "Active").length,
         draft: allJobs.filter(j => j.status === "Draft").length,
         closed: allJobs.filter(j => j.status === "Closed").length,
+        filled: allJobs.filter(j => j.status === "Filled").length,
+        archived: allJobs.filter(j => j.status === "Archived").length,
         totalApps: allJobs.reduce((s, j) => s + j.stats.total, 0),
         avgMatch: jobsWithMatch.length > 0
             ? Math.round(jobsWithMatch.reduce((s, j) => s + j.stats.avgMatch, 0) / jobsWithMatch.length)
@@ -316,7 +359,7 @@ export default function MyJobsPage() {
             return a.postedDaysAgo - b.postedDaysAgo; // most recent first
         });
 
-    const TABS: ("All" | JobStatus)[] = ["All", "Active", "Draft", "Closed"];
+    const TABS: ("All" | JobStatus)[] = ["All", "Active", "Draft", "Closed", "Filled", "Archived"];
 
     return (
         <div className="space-y-5">
@@ -386,7 +429,7 @@ export default function MyJobsPage() {
                             {tab !== "All" && (
                                 <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab ? "bg-gray-200 text-gray-700" : "bg-gray-200 text-gray-500"
                                     }`}>
-                                    {tab === "Active" ? summary.active : tab === "Draft" ? summary.draft : summary.closed}
+                                    {tab === "Active" ? summary.active : tab === "Draft" ? summary.draft : tab === "Closed" ? summary.closed : tab === "Filled" ? summary.filled : summary.archived}
                                 </span>
                             )}
                         </button>

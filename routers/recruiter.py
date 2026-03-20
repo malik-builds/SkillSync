@@ -150,7 +150,7 @@ async def format_job(j: RecruiterJob, profile: RecruiterProfile) -> dict:
         scores.append(await compute_match_score(student, j))
     avg_match = int(sum(scores) / len(scores)) if scores else 0
 
-    status_map = {"active": "Active", "draft": "Draft", "closed": "Closed"}
+    status_map = {"active": "Active", "draft": "Draft", "closed": "Closed", "archived": "Archived", "filled": "Filled"}
     return {
         "id": str(j.id),
         "title": j.title,
