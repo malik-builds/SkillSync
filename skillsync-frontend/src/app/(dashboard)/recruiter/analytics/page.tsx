@@ -114,6 +114,79 @@ export default function AnalyticsPage() {
         ? ((funnelData[funnelData.length - 1].value / funnelData[0].value) * 100).toFixed(1)
         : "0";
 
+    const handleExport = () => {
+        const rows: any[][] = [];
+        
+        // 1. Overall Stats
+        rows.push(["----- OVERALL STATS -----"]);
+        rows.push(["Metric", "Value"]);
+        if (analytics?.stats) {
+            rows.push(["Total Applications", analytics.stats.totalApplications]);
+            rows.push(["Avg Match Score", analytics.stats.avgMatchScore + "%"]);
+            rows.push(["Avg Time To Hire", analytics.stats.avgTimeToHire + " days"]);
+            rows.push(["Interview Rate", analytics.stats.interviewRate + "%"]);
+            rows.push(["Offer Accept Rate", analytics.stats.offerAcceptRate + "%"]);
+        }
+        rows.push([], []);
+
+        // 2. Conversion Funnel
+        rows.push(["----- CONVERSION FUNNEL -----"]);
+        rows.push(["Stage", "Candidates", "Drop-off %"]);
+        funnelData.forEach((d, i) => {
+            const drop = i > 0 ? (((funnelData[i - 1].value - d.value) / funnelData[i - 1].value) * 100).toFixed(1) + "%" : "0%";
+            rows.push([d.name, d.value, drop]);
+        });
+        rows.push([], []);
+
+        // 3. Application Trends
+        rows.push([`----- APPLICATION TRENDS (${range}) -----`]);
+        rows.push(["Period", "Applications", "Interviews", "Offers", "Hired", "Rejected"]);
+        trendData.forEach(d => {
+            rows.push([d.label, d.apps, d.interviews, d.offers, d.hired, d.rejected]);
+        });
+        rows.push([], []);
+
+        // 4. Sources
+        rows.push(["----- TOP CANDIDATE SOURCES -----"]);
+        rows.push(["Source", "Percentage"]);
+        sourceData.forEach(d => {
+            rows.push([d.name, d.value + "%"]);
+        });
+        rows.push([], []);
+
+        // 5. Skill Demand
+        rows.push(["----- SKILL DEMAND -----"]);
+        rows.push(["Skill", "Open Roles"]);
+        skillDemand.forEach(d => {
+            rows.push([d.skill, d.jobs]);
+        });
+        rows.push([], []);
+
+        // 6. Job Performance
+        rows.push(["----- JOB PERFORMANCE -----"]);
+        rows.push(["Job Title", "Applications", "Avg Match %", "Time to Hire (days)", "Status Warning"]);
+        if (jobPerformance && jobPerformance.length > 0) {
+            jobPerformance.forEach(job => {
+                rows.push([
+                    `"${job.title.replace(/"/g, '""')}"`,
+                    job.apps,
+                    job.match,
+                    job.days,
+                    job.warn ? "Yes" : "No"
+                ]);
+            });
+        }
+        
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Recruiter_Analytics_Comprehensive_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const RANGE_OPTIONS: { value: DateRange; label: string }[] = [
         { value: "7d", label: "Last 7 Days" },
         { value: "30d", label: "Last 30 Days" },
@@ -145,8 +218,8 @@ export default function AnalyticsPage() {
                             </button>
                         ))}
                     </div>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
-                        <Download size={13} /> Export <ChevronDown size={11} className="text-gray-400" />
+                    <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
+                        <Download size={13} /> Export CSV
                     </button>
                 </div>
             </div>
