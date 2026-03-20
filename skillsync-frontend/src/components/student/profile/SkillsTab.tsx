@@ -10,7 +10,7 @@ interface SkillsTabProps {
     onRefresh?: () => void;
 }
 
-export function SkillsTab({ profile }: SkillsTabProps) {
+export function SkillsTab({ profile, onRefresh }: SkillsTabProps) {
     const [skills, setSkills] = useState(profile.skills || []);
     const verifiedSkills = (skills || []).filter((s) => s.verified);
     const manualSkills = (skills || []).filter((s) => !s.verified);
@@ -43,6 +43,8 @@ export function SkillsTab({ profile }: SkillsTabProps) {
                 };
             }));
             setVerifyMessage(`GitHub verification complete. ${result.verifiedSkills.length} verified skill(s) found.`);
+            // Refetch profile from backend to ensure all verified skills are displayed
+            onRefresh?.();
         } catch (e: any) {
             setVerifyError(e?.error || "GitHub verification failed.");
         } finally {
