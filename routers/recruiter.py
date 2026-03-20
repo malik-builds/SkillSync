@@ -296,6 +296,7 @@ async def get_schedule(current_user: User = Depends(require_recruiter)):
             if ev.date not in schedule_data:
                 schedule_data[ev.date] = []
             schedule_data[ev.date].append({
+                "id": str(ev.id),
                 "time": ev.time,
                 "title": ev.title,
                 "type": ev.type,
@@ -333,6 +334,23 @@ async def create_schedule_event(data: ScheduleEventCreate, current_user: User = 
         return {"success": True, "id": str(new_event.id)}
     except Exception as e:
         print(f"[ERROR schedule POST]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.delete("/dashboard/schedule/{event_id}")
+async def delete_schedule_event(event_id: str, current_user: User = Depends(require_recruiter)):
+    try:
+        event = await ScheduleEvent.get(event_id)
+        if not event:
+            raise HTTPException(404, "Schedule event not found")
+        if event.recruiter_email != current_user.email:
+            raise HTTPException(403, "Access denied")
+
+        await event.delete()
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR schedule DELETE]: {e}")
         raise HTTPException(500, "Internal error")
 
 @router.get("/analytics")

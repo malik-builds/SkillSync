@@ -66,7 +66,7 @@ export function getRecruiterStats() {
   return api.get<RecruiterDashboardStats>('/recruiter/dashboard/stats')
 }
 
-export type ScheduleMap = Record<string, { time: string; title: string; type: "zoom" | "office" | "call"; detail: string }[]>;
+export type ScheduleMap = Record<string, { id: string; time: string; title: string; type: "zoom" | "office" | "call"; detail: string }[]>;
 
 export function getSchedule() {
   return api.get<ScheduleMap>('/recruiter/dashboard/schedule')
@@ -74,6 +74,10 @@ export function getSchedule() {
 
 export function createScheduleEvent(data: { date: string; time: string; title: string; type: string; detail: string }) {
   return api.post<{ success: boolean; id: string }>('/recruiter/dashboard/schedule', data)
+}
+
+export function deleteScheduleEvent(eventId: string) {
+  return api.delete<{ success: boolean }>(`/recruiter/dashboard/schedule/${eventId}`)
 }
 
 // ── Jobs ───────────────────────────────────────────────────

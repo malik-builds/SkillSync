@@ -6,14 +6,14 @@ import Link from "next/link";
 import {
     Briefcase, Users, MailOpen, Target, ArrowRight,
     ChevronLeft, ChevronRight, Clock, Video, MapPin, Plus,
-    Download, Bell
+    Download, Bell, Trash2
 } from "lucide-react";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, Cell
 } from "recharts";
 import { useApi } from "@/lib/hooks/useApi";
-import { getRecruiterDashboard, RecruiterDashboardData, getSchedule, ScheduleMap, createScheduleEvent } from "@/lib/api/recruiter-api";
+import { getRecruiterDashboard, RecruiterDashboardData, getSchedule, ScheduleMap, createScheduleEvent, deleteScheduleEvent } from "@/lib/api/recruiter-api";
 
 const DISMISS_KEY = "recruiter_greeting_dismissed";
 
@@ -340,7 +340,17 @@ function MiniCalendar({ schedule, onSelectDate }: { schedule: ScheduleMap; onSel
     );
 }
 
-function SchedulePanel({ date, schedule, onAddEvent }: { date: Date; schedule: ScheduleMap; onAddEvent: (date: Date) => void }) {
+function SchedulePanel({
+    date,
+    schedule,
+    onAddEvent,
+    onRemoveEvent,
+}: {
+    date: Date;
+    schedule: ScheduleMap;
+    onAddEvent: (date: Date) => void;
+    onRemoveEvent: (eventId: string) => Promise<void>;
+}) {
     const isoKey = date.toISOString().split("T")[0];
     const events = schedule[isoKey] || [];
     const displayDate = `${DAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]}`;
@@ -373,6 +383,13 @@ function SchedulePanel({ date, schedule, onAddEvent }: { date: Date; schedule: S
                                 <p className="text-sm font-medium text-gray-900 truncate">{ev.title}</p>
                                 <p className="text-xs text-gray-500 truncate">{ev.detail}</p>
                             </div>
+                            <button
+                                onClick={() => onRemoveEvent(ev.id)}
+                                className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Remove reminder"
+                            >
+                                <Trash2 size={14} />
+                            </button>
                             <span className="text-xs text-gray-400 flex-shrink-0">{ev.time}</span>
                         </div>
                     ))
@@ -423,6 +440,16 @@ export default function RecruiterDashboard() {
             alert("Failed to save event");
         } finally {
             setIsSavingEvent(false);
+        }
+    };
+
+    const handleRemoveEvent = async (eventId: string) => {
+        try {
+            await deleteScheduleEvent(eventId);
+            refetchSchedule();
+        } catch (error) {
+            console.error(error);
+            alert("Failed to remove reminder");
         }
     };
 
@@ -593,7 +620,12 @@ export default function RecruiterDashboard() {
 
                     {/* Schedule or Top Matches */}
                     {selectedDate ? (
-                        <SchedulePanel date={selectedDate} schedule={scheduleMap || {}} onAddEvent={handleOpenAddEvent} />
+                        <SchedulePanel
+                            date={selectedDate}
+                            schedule={scheduleMap || {}}
+                            onAddEvent={handleOpenAddEvent}
+                            onRemoveEvent={handleRemoveEvent}
+                        />
                     ) : (
                         <div className="bg-white border border-gray-200 rounded-md shadow-sm">
                             <div className="border-b border-gray-200 px-4 py-3 bg-stone-50/50 flex justify-between items-center">
