@@ -116,8 +116,8 @@ export async function analyzeProfile(file: File, githubUrl?: string, targetJob?:
 }
 
 /** POST /auth/github/connect */
-export async function connectGitHub(): Promise<GitHubConnectResponse> {
-  return api.post<GitHubConnectResponse>('/auth/github/connect')
+export async function connectGitHub(githubUrl: string): Promise<GitHubConnectResponse> {
+  return api.post<GitHubConnectResponse>('/auth/github/connect', { githubUrl })
 }
 
 
