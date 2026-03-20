@@ -97,7 +97,7 @@ function MoreMenu({ job, onAction }: { job: Job; onAction: (action: string, id: 
     );
 }
 
-function JobRow({ job, onAction }: { job: Job; onAction: (action: string, id: string) => void }) {
+function JobRow({ job, onAction, onEdit }: { job: Job; onAction: (action: string, id: string) => void; onEdit: (job: Job) => void }) {
     const [expanded, setExpanded] = useState(false);
     const isGhosted = job.status === "Closed";
 
@@ -170,6 +170,10 @@ function JobRow({ job, onAction }: { job: Job; onAction: (action: string, id: st
                         <button
                             className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
                             title="Edit Job"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(job);
+                            }}
                         >
                             <Edit2 size={15} />
                         </button>
@@ -243,7 +247,10 @@ function JobRow({ job, onAction }: { job: Job; onAction: (action: string, id: st
                             </Link>
                             <button
                                 className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium rounded-md transition-colors"
-                                onClick={e => e.stopPropagation()}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEdit(job);
+                                }}
                             >
                                 <Edit2 size={13} /> Edit Job
                             </button>
@@ -266,6 +273,7 @@ export default function MyJobsPage() {
     const [sortBy, setSortBy] = useState<"recent" | "applications" | "deadline">("recent");
     const [toast, setToast] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [jobToEdit, setJobToEdit] = useState<Job | null>(null);
 
     const showToast = (msg: string) => {
         setToast(msg);
@@ -315,11 +323,15 @@ export default function MyJobsPage() {
             {/* Modal */}
             <JobPostModal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                onClose={() => {
+                    setIsModalOpen(false);
+                    setJobToEdit(null);
+                }}
                 onSuccess={(msg: string) => {
                     showToast(msg);
                     refetch();
                 }}
+                jobToEdit={jobToEdit}
             />
 
             {/* ── Page Header ── */}
@@ -329,7 +341,10 @@ export default function MyJobsPage() {
                     <p className="text-sm text-gray-500 mt-0.5">Manage your job postings and track applications</p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => {
+                        setJobToEdit(null);
+                        setIsModalOpen(true);
+                    }}
                     className="flex items-center gap-2 px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold rounded-md shadow-sm transition-colors"
                 >
                     <Plus size={15} /> Post New Job
@@ -418,7 +433,15 @@ export default function MyJobsPage() {
             ) : (
                 <div className="space-y-3">
                     {filtered.map(job => (
-                        <JobRow key={job.id} job={job} onAction={handleAction} />
+                        <JobRow 
+                            key={job.id} 
+                            job={job} 
+                            onAction={handleAction}
+                            onEdit={(job) => {
+                                setJobToEdit(job);
+                                setIsModalOpen(true);
+                            }}
+                        />
                     ))}
                 </div>
             )}

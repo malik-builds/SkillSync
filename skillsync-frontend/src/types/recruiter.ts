@@ -8,6 +8,8 @@ export interface RecruiterJob {
   company: string;
   location: string;
   workType: WorkType;
+  type: string;
+  description: string;
   salaryMin: number;
   salaryMax: number;
   postedDaysAgo: number;

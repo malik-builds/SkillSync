@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Briefcase, MapPin, DollarSign, Clock, Layout, AlignLeft, Send, CheckCircle2 } from "lucide-react";
-import { createJob } from "@/lib/api/recruiter-api";
+import { createJob, updateJob } from "@/lib/api/recruiter-api";
 import { JobStatus, RecruiterJob } from "@/types/recruiter";
 
 interface JobPostModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: (msg: string) => void;
+    jobToEdit?: RecruiterJob | null;
 }
 
-export function JobPostModal({ isOpen, onClose, onSuccess }: JobPostModalProps) {
+export function JobPostModal({ isOpen, onClose, onSuccess, jobToEdit }: JobPostModalProps) {
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         title: "",
@@ -28,23 +29,49 @@ export function JobPostModal({ isOpen, onClose, onSuccess }: JobPostModalProps) 
 
     const [skillInput, setSkillInput] = useState("");
 
+    useEffect(() => {
+        if (isOpen) {
+            setFormData({
+                title: jobToEdit?.title || "",
+                department: jobToEdit?.department || "Engineering",
+                location: jobToEdit?.location || "Colombo, Sri Lanka",
+                workType: (jobToEdit?.workType as any) || "OnSite",
+                type: (jobToEdit?.type as any) || "Full-time",
+                salaryMin: jobToEdit?.salaryMin || 80,
+                salaryMax: jobToEdit?.salaryMax || 150,
+                description: jobToEdit?.description || "",
+                requirements: jobToEdit?.skills || [],
+                deadline: jobToEdit?.deadline && jobToEdit.deadline !== "Closed" ? jobToEdit.deadline : "",
+            });
+            setSkillInput("");
+        }
+    }, [isOpen, jobToEdit]);
+
     if (!isOpen) return null;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await createJob({
-                ...formData,
-                status: "Active" as JobStatus,
-                skills: formData.requirements,
-            } as any);
-            onSuccess("Job posted successfully!");
+            if (jobToEdit) {
+                await updateJob(jobToEdit.id, {
+                    ...formData,
+                    skills: formData.requirements,
+                } as any);
+                onSuccess("Job updated successfully!");
+            } else {
+                await createJob({
+                    ...formData,
+                    status: "Active" as JobStatus,
+                    skills: formData.requirements,
+                } as any);
+                onSuccess("Job posted successfully!");
+            }
             onClose();
         } catch (error: any) {
-            console.error("Failed to post job:", error);
+            console.error(jobToEdit ? "Failed to update job:" : "Failed to post job:", error);
             const msg = error.error || error.message || "Please try again.";
-            alert(`Failed to post job: ${msg}`);
+            alert(`Failed to ${jobToEdit ? "update" : "post"} job: ${msg}`);
         } finally {
             setLoading(false);
         }
@@ -70,7 +97,7 @@ export function JobPostModal({ isOpen, onClose, onSuccess }: JobPostModalProps) 
                         <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
                             <PlusIcon size={18} />
                         </div>
-                        <h2 className="text-xl font-bold text-gray-900">Post New Job</h2>
+                        <h2 className="text-xl font-bold text-gray-900">{jobToEdit ? "Edit Job" : "Post New Job"}</h2>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 text-gray-400 transition-colors">
                         <X size={20} />
@@ -257,7 +284,7 @@ export function JobPostModal({ isOpen, onClose, onSuccess }: JobPostModalProps) 
                         disabled={loading}
                         className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
                     >
-                        {loading ? "Posting..." : <><Send size={16} /> Post Job</>}
+                        {loading ? (jobToEdit ? "Updating..." : "Posting...") : <><Send size={16} /> {jobToEdit ? "Update Job" : "Post Job"}</>}
                     </button>
                 </div>
             </div>
