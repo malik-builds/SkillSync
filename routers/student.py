@@ -67,6 +67,33 @@ def skill_exists_in_profile(skill_name: str, profile_skills: set) -> bool:
                 return True
     return False
 
+def extract_skill_slug_from_path_id(path_id: str) -> str:
+    """Extract skill slug from dynamic learning path IDs."""
+    pid = ss(path_id).strip().lower()
+    if pid.startswith("path_manual_"):
+        return pid[len("path_manual_"):]
+    if pid.startswith("path_req_"):
+        return pid[len("path_req_"):]
+    if pid.startswith("path_gap_"):
+        # Format: path_gap_<index>_<skill_slug>
+        parts = pid.split("_", 3)
+        if len(parts) == 4:
+            return parts[3]
+    return ""
+
+def resolve_skill_name_from_slug(skill_slug_value: str, candidate_skills: list) -> str:
+    """Find the original display skill name for a slug from known candidate skill names."""
+    slug_value = ss(skill_slug_value).strip().lower()
+    if not slug_value:
+        return ""
+
+    for candidate in candidate_skills:
+        candidate_name = ss(candidate).strip()
+        if candidate_name and skill_slug(candidate_name) == slug_value:
+            return candidate_name
+
+    return slug_value.replace("_", " ").strip()
+
 router = APIRouter()
 
 def format_time_ago(dt: datetime) -> str:
@@ -1010,11 +1037,39 @@ async def remove_profile_skill(data: dict = Body(...), current_user: User = Depe
         student.skills = [s for s in existing_skills if ss(s).strip().lower() != skill_key]
 
         extracted = student.extracted_data or {}
+        gap_report = extracted.get("gap_report", {}) if isinstance(extracted.get("gap_report", {}), dict) else {}
+        missing_critical = sl(gap_report.get("missing_critical", []))
+        missing_critical_norm = {ss(s).strip().lower() for s in missing_critical if ss(s).strip()}
 
         # Remove from all profile/learning bookkeeping lists so UI stays consistent.
         for key in ["manual_profile_skills", "completed_learning_skills", "manual_learning_skills"]:
             values = sl(extracted.get(key, []))
             extracted[key] = [s for s in values if ss(s).strip().lower() != skill_key]
+
+        # Put removed profile skill back into gap analysis so user can relearn it.
+        if skill_key and skill_key not in missing_critical_norm:
+            missing_critical.insert(0, skill_name)
+            gap_report["missing_critical"] = missing_critical
+            extracted["gap_report"] = gap_report
+
+        # Reset all path progress for this skill so a re-added path starts from the beginning.
+        target_slug = skill_slug(skill_name)
+        progress = dict(student.learning_progress or {})
+        stale_progress_keys = []
+        for path_key in progress.keys():
+            path_slug = extract_skill_slug_from_path_id(path_key)
+            if path_slug and path_slug == target_slug:
+                stale_progress_keys.append(path_key)
+        for key in stale_progress_keys:
+            progress.pop(key, None)
+        student.learning_progress = progress
+
+        # Also un-hide previously removed path variants for this skill.
+        removed_paths = sl(extracted.get("removed_learning_paths", []))
+        extracted["removed_learning_paths"] = [
+            p for p in removed_paths
+            if extract_skill_slug_from_path_id(ss(p).strip()) != target_slug
+        ]
 
         student.extracted_data = extracted
         await student.save()
@@ -1259,8 +1314,6 @@ async def get_learning_paths(current_user: User = Depends(get_current_user)):
             if not skill_name:
                 continue
             skill_key = skill_name.lower()
-            if skill_exists_in_profile(skill_name, profile_skills):
-                continue
             if skill_key in added_skills:
                 continue
             path_id = f"path_manual_{skill_slug(skill_name)}"
@@ -1423,16 +1476,6 @@ async def add_skill_to_learning_path(data: dict = Body(...), current_user: User 
         student = await get_student_doc(current_user)
         extracted = student.extracted_data or {}
         manual_skills = sl(extracted.get("manual_learning_skills", []))
-        profile_skill_keys = {
-            alias
-            for skill in sl(student.skills)
-            for alias in build_skill_aliases(skill)
-            if alias
-        }
-
-        # Do not add a learning path for a skill the student already has.
-        if skill_exists_in_profile(skill_name, profile_skill_keys):
-            return {"success": True, "alreadyAdded": True}
 
         existing = {ss(s).strip().lower() for s in manual_skills if ss(s).strip()}
         if skill_name.lower() in existing:
@@ -1441,6 +1484,12 @@ async def add_skill_to_learning_path(data: dict = Body(...), current_user: User 
         # Keep newest added skill first so it is immediately visible in UI.
         manual_skills.insert(0, skill_name)
         extracted["manual_learning_skills"] = manual_skills
+
+        # If the same path was removed earlier, restore it when skill is manually re-added.
+        path_id = f"path_manual_{skill_slug(skill_name)}"
+        removed_paths = sl(extracted.get("removed_learning_paths", []))
+        extracted["removed_learning_paths"] = [p for p in removed_paths if ss(p).strip() != path_id]
+
         student.extracted_data = extracted
         await student.save()
 
@@ -1539,12 +1588,43 @@ async def remove_learning_path(path_id: str, current_user: User = Depends(get_cu
     try:
         student = await get_student_doc(current_user)
         extracted = student.extracted_data or {}
+        progress_state = student.learning_progress.get(path_id, {})
+
+        # For completed paths, persist the path skill in profile before removing the path.
+        completed_ids = set()
+        if isinstance(progress_state, dict):
+            completed_ids = {ss(node_id) for node_id in sl(progress_state.get("completedNodeIds", [])) if ss(node_id)}
+        path_is_completed = len(completed_ids) >= 3
+
+        if path_is_completed:
+            slug_value = extract_skill_slug_from_path_id(path_id)
+            candidate_skills = [
+                *sl(extracted.get("manual_learning_skills", [])),
+                *sl((extracted.get("gap_report", {}) or {}).get("missing_critical", [])),
+                *sl((extracted.get("market_requirements", {}) or {}).get("must_have", [])),
+                *sl(student.skills),
+            ]
+            resolved_skill = resolve_skill_name_from_slug(slug_value, candidate_skills)
+            if resolved_skill:
+                existing_profile = {ss(s).strip().lower() for s in sl(student.skills) if ss(s).strip()}
+                if resolved_skill.lower() not in existing_profile:
+                    student.skills.append(resolved_skill)
+
+                completed_learning = sl(extracted.get("completed_learning_skills", []))
+                completed_norm = {ss(s).strip().lower() for s in completed_learning if ss(s).strip()}
+                if resolved_skill.lower() not in completed_norm:
+                    completed_learning.append(resolved_skill)
+                    extracted["completed_learning_skills"] = completed_learning
+
         removed_paths = sl(extracted.get("removed_learning_paths", []))
 
         normalized = {ss(p).strip() for p in removed_paths if ss(p).strip()}
         if path_id not in normalized:
             removed_paths.append(path_id)
             extracted["removed_learning_paths"] = removed_paths
+            student.extracted_data = extracted
+            await student.save()
+        else:
             student.extracted_data = extracted
             await student.save()
 
