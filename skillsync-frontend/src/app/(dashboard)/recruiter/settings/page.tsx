@@ -104,12 +104,54 @@ function InviteModal({ onClose }: { onClose: () => void }) {
 
 function AccountTab() {
     const { user } = useAuth();
-    const [showPw, setShowPw] = useState(false);
+    const [showCurrentPw, setShowCurrentPw] = useState(false);
+    const [showNewPw, setShowNewPw] = useState(false);
+    const [showConfirmPw, setShowConfirmPw] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [error, setError] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
 
-    const handleSave = () => {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2500);
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+
+    const handleSave = async () => {
+        setError("");
+
+        // Only attempt to change password if any password field is filled
+        if (currentPassword || newPassword || confirmPassword) {
+            if (newPassword !== confirmPassword) {
+                setError("New passwords do not match.");
+                return;
+            }
+            if (!currentPassword || !newPassword) {
+                setError("Please fill in both current and new password.");
+                return;
+            }
+            if (newPassword.length < 6) {
+                setError("New password must be at least 6 characters long.");
+                return;
+            }
+
+            try {
+                setIsSaving(true);
+                const { changeRecruiterPassword } = await import('@/lib/api/recruiter-api');
+                await changeRecruiterPassword({ currentPassword, newPassword });
+                setCurrentPassword("");
+                setNewPassword("");
+                setConfirmPassword("");
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2500);
+            } catch (err: any) {
+                setError(err.response?.data?.detail || "Failed to update password. Please check your current password.");
+            } finally {
+                setIsSaving(false);
+            }
+        } else {
+
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2500);
+        }
     };
 
     const nameParts = (user?.fullName || "").split(" ");
@@ -150,19 +192,41 @@ function AccountTab() {
             {/* Password */}
             <Card title="Password" desc="Choose a strong, unique password">
                 <div className="grid sm:grid-cols-2 gap-4">
-                    {["Current Password", "New Password", "Confirm New Password"].map((l) => (
-                        <div key={l} className={l === "Current Password" ? "sm:col-span-2" : ""}>
-                            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">{l}</label>
-                            <div className="relative">
-                                <input type={showPw ? "text" : "password"} placeholder="••••••••"
-                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                                <button onClick={() => setShowPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                                    {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
-                                </button>
-                            </div>
+                    <div className="sm:col-span-2">
+                        <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Current Password</label>
+                        <div className="relative">
+                            <input type={showCurrentPw ? "text" : "password"} placeholder="••••••••"
+                                value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                            <button onClick={() => setShowCurrentPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                {showCurrentPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
                         </div>
-                    ))}
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">New Password</label>
+                        <div className="relative">
+                            <input type={showNewPw ? "text" : "password"} placeholder="••••••••"
+                                value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                            <button onClick={() => setShowNewPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Confirm New Password</label>
+                        <div className="relative">
+                            <input type={showConfirmPw ? "text" : "password"} placeholder="••••••••"
+                                value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                            <button onClick={() => setShowConfirmPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                {showConfirmPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                        </div>
+                    </div>
                 </div>
+                {error && <p className="text-sm font-medium text-red-600 mt-3">{error}</p>}
             </Card>
 
             {/* Danger zone */}
@@ -179,8 +243,8 @@ function AccountTab() {
             </Card>
 
             <div className="flex justify-end">
-                <button onClick={handleSave} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${saved ? "bg-green-600 text-white" : "bg-blue-700 hover:bg-blue-800 text-white shadow-sm"}`}>
-                    {saved ? <><Check size={13} /> Saved!</> : "Save Changes"}
+                <button onClick={handleSave} disabled={isSaving} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${saved ? "bg-green-600 text-white" : "bg-blue-700 hover:bg-blue-800 text-white shadow-sm disabled:opacity-50"}`}>
+                    {isSaving ? "Saving..." : saved ? <><Check size={13} /> Saved!</> : "Save Changes"}
                 </button>
             </div>
         </div>
