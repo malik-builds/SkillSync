@@ -292,10 +292,10 @@ export function changeRecruiterPassword(data: { currentPassword: string; newPass
 export interface RecruiterAnalytics {
   stats: {
     totalApplications: number
+    avgMatchScore: number
     avgTimeToHire: number
     interviewRate: number
     offerAcceptRate: number
-    costPerHire: number
   }
   trends: TrendDataPoint[]
   sources: SourceDataPoint[]

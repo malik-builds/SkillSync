@@ -154,11 +154,11 @@ export default function AnalyticsPage() {
 
             {/* ── KPI Row ── */}
             <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-                <MetricCard label="Total Applications" value="127" delta="+23%" deltaLabel="vs last period" icon={Users} positive={true} />
-                <MetricCard label="Avg Match Score" value="78%" delta="+5%" deltaLabel="vs last period" icon={Target} positive={true} />
-                <MetricCard label="Interview Rate" value="12%" delta="+3%" deltaLabel="vs last period" icon={CheckCircle} positive={true} />
-                <MetricCard label="Offer Accept Rate" value="67%" delta="-8%" deltaLabel="vs last period" icon={Zap} positive={false} />
-                <MetricCard label="Time to Hire" value="15d" delta="-3d" deltaLabel="improved" icon={Clock} positive={true} />
+                <MetricCard label="Total Applications" value={analytics?.stats?.totalApplications.toString() || "0"} delta="" deltaLabel="" icon={Users} positive={null} />
+                <MetricCard label="Avg Match Score" value={(analytics?.stats?.avgMatchScore || 0) + "%"} delta="" deltaLabel="" icon={Target} positive={null} />
+                <MetricCard label="Interview Rate" value={(analytics?.stats?.interviewRate || 0) + "%"} delta="" deltaLabel="" icon={CheckCircle} positive={null} />
+                <MetricCard label="Offer Accept Rate" value={(analytics?.stats?.offerAcceptRate || 0) + "%"} delta="" deltaLabel="" icon={Zap} positive={null} />
+                <MetricCard label="Time to Hire" value={(analytics?.stats?.avgTimeToHire || 0) + "d"} delta="" deltaLabel="" icon={Clock} positive={null} />
             </div>
 
             {/* ── Application Trends — Line Chart ────────────────────────────────
@@ -172,6 +172,7 @@ export default function AnalyticsPage() {
                         { key: "apps", color: "#2563EB", label: "Applications" },
                         { key: "interviews", color: "#7C3AED", label: "Interviews" },
                         { key: "offers", color: "#16A34A", label: "Offers" },
+                        { key: "rejected", color: "#EF4444", label: "Rejected" },
                     ].map((s) => (
                         <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-gray-600">
                             <span className="w-3 h-0.5 inline-block rounded" style={{ background: s.color }} />
@@ -188,6 +189,7 @@ export default function AnalyticsPage() {
                         <Line type="monotone" dataKey="apps" stroke="#2563EB" strokeWidth={2} dot={{ fill: "#2563EB", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
                         <Line type="monotone" dataKey="interviews" stroke="#7C3AED" strokeWidth={2} dot={{ fill: "#7C3AED", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
                         <Line type="monotone" dataKey="offers" stroke="#16A34A" strokeWidth={2} dot={{ fill: "#16A34A", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="rejected" stroke="#EF4444" strokeWidth={2} dot={{ fill: "#EF4444", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
                     </LineChart>
                 </ResponsiveContainer>
             </Section>
@@ -281,18 +283,15 @@ export default function AnalyticsPage() {
                     <div className="border-t border-gray-100 mt-4 pt-4">
                         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Hardest Roles to Fill</p>
                         <div className="space-y-2">
-                            {[
-                                { role: "Senior DevOps", days: 28 },
-                                { role: "ML Engineer", days: 23 },
-                                { role: "Cloud Architect", days: 20 },
-                            ].map((r) => (
-                                <div key={r.role} className="flex items-center justify-between">
-                                    <span className="text-xs text-gray-700">{r.role}</span>
+                            {[...jobPerformance].sort((a, b) => b.days - a.days).slice(0, 3).map((r) => (
+                                <div key={r.title} className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-700">{r.title}</span>
                                     <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${r.days >= 25 ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
-                                        {r.days}d avg
+                                        {r.days}d open
                                     </span>
                                 </div>
                             ))}
+                            {jobPerformance.length === 0 && <span className="text-xs text-gray-400">No active roles</span>}
                         </div>
                     </div>
                 </Section>

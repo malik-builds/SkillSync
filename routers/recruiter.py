@@ -73,7 +73,6 @@ def map_stage_to_status(stage: str) -> str:
         "Screening": "reviewing",
         "Shortlisted": "shortlisted",
         "Interview": "interview",
-        "Offer": "offer",
         "Hired": "hired",
         "Rejected": "rejected",
     }
@@ -273,14 +272,28 @@ async def get_full_analytics(range: str = "30d", current_user: User = Depends(re
         total_apps = len(apps)
         interviews = sum(1 for a in apps if a.status in ("interview", "offer", "hired"))
         offers = sum(1 for a in apps if a.status in ("offer", "hired"))
+        hired = sum(1 for a in apps if a.status == "hired")
+        
+        # Calculate avgMatchScore across all apps
+        job_dict = {str(j.id): j for j in jobs}
+        match_scores = []
+        for a in apps:
+            student = await Student.find_one(Student.email == a.student_email)
+            if student and str(a.job_id) in job_dict:
+                match_scores.append(await compute_match_score(student, job_dict[str(a.job_id)]))
+        avg_match = int(sum(match_scores) / len(match_scores)) if match_scores else 0
+        
+        # Approximate time to hire (average days of jobs with hires)
+        hired_jobs = [j for j in jobs if any(a.job_id == str(j.id) and a.status == "hired" for a in apps)]
+        time_to_hire = int(sum(days_ago(j.created_at) for j in hired_jobs) / len(hired_jobs)) if hired_jobs else 0
         
         return {
             "stats": {
                 "totalApplications": total_apps,
-                "avgTimeToHire": 14,
+                "avgMatchScore": avg_match,
+                "avgTimeToHire": time_to_hire,
                 "interviewRate": int((interviews/total_apps*100)) if total_apps > 0 else 0,
-                "offerAcceptRate": int((offers/interviews*100)) if interviews > 0 else 85,
-                "costPerHire": 2400
+                "offerAcceptRate": int((offers/interviews*100)) if interviews > 0 else 0,
             },
             "trends": trends,
             "sources": sources,
@@ -312,11 +325,13 @@ async def get_analytics_trends(date_range: str = "30d", current_user: User = Dep
             week_apps = [a for a in apps if week_start <= a.applied_at < week_end]
             interviews = sum(1 for a in week_apps if a.status in ("interview", "offer", "hired"))
             offers = sum(1 for a in week_apps if a.status in ("offer", "hired"))
+            rejected = sum(1 for a in week_apps if a.status == "rejected")
             result.append({
                 "label": f"Wk {week_i + 1}",
                 "apps": len(week_apps),
                 "interviews": interviews,
                 "offers": offers,
+                "rejected": rejected,
             })
         return result
     except Exception as e:
@@ -326,10 +341,16 @@ async def get_analytics_trends(date_range: str = "30d", current_user: User = Dep
 @router.get("/analytics/sources")
 async def get_source_breakdown(current_user: User = Depends(require_recruiter)):
     try:
+        # Assuming all current applications are Native to SkillSync.
+        # If external sources/UTMs are added later, group by them here.
+        jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == current_user.email).to_list()
+        job_ids = [str(j.id) for j in jobs]
+        apps_count = await Application.find({"job_id": {"$in": job_ids}}).count()
         return [
-            {"name": "SkillSync Native", "value": 100},
+            {"name": "SkillSync Platform", "value": apps_count if apps_count > 0 else 1},
         ]
-    except Exception:
+    except Exception as e:
+        print(f"[ERROR sources]: {e}")
         raise HTTPException(500, "Internal error")
 
 @router.get("/analytics/skill-demand")
@@ -341,9 +362,7 @@ async def get_skill_demand(current_user: User = Depends(require_recruiter)):
             for s in (j.requirements or []):
                 skill_count[s] = skill_count.get(s, 0) + 1
         sorted_skills = sorted(skill_count.items(), key=lambda x: x[1], reverse=True)[:10]
-        return [{"skill": s, "jobs": c} for s, c in sorted_skills] or [
-            {"skill": "React", "jobs": 1}, {"skill": "Python", "jobs": 1}
-        ]
+        return [{"skill": s, "jobs": c} for s, c in sorted_skills]
     except Exception as e:
         print(f"[ERROR skill demand]: {e}")
         raise HTTPException(500, "Internal error")
@@ -359,12 +378,14 @@ async def get_funnel(current_user: User = Depends(require_recruiter)):
         interview = sum(1 for a in apps if a.status in ("interview","offer","hired"))
         offer = sum(1 for a in apps if a.status in ("offer","hired"))
         hired = sum(1 for a in apps if a.status == "hired")
+        rejected = sum(1 for a in apps if a.status == "rejected")
         return [
             {"name": "Applied", "value": total, "fill": "#3b82f6"},
             {"name": "Screening", "value": screening, "fill": "#8b5cf6"},
             {"name": "Interview", "value": interview, "fill": "#ec4899"},
             {"name": "Offer", "value": offer, "fill": "#f43f5e"},
             {"name": "Hired", "value": hired, "fill": "#10b981"},
+            {"name": "Rejected", "value": rejected, "fill": "#ef4444"},
         ]
     except Exception as e:
         print(f"[ERROR funnel]: {e}")
