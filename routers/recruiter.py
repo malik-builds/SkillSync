@@ -1088,8 +1088,13 @@ async def revoke_team_invite(invite_id: str, current_user: User = Depends(requir
 
 @router.get("/settings/plans")
 async def get_plans(current_user: User = Depends(require_recruiter)):
-    """Stub — billing plans not yet implemented."""
-    return [{"id": "free", "name": "Free", "price": 0, "current": True}]
+    """Returns the billing plans available for recruiters."""
+    return [
+        {"id": "free", "name": "Free", "price": 0, "current": False, "jobs": 1, "users": 1, "ats": False, "analytics": False},
+        {"id": "starter", "name": "Starter", "price": 29, "current": False, "jobs": 5, "users": 3, "ats": True, "analytics": False},
+        {"id": "growth", "name": "Growth", "price": 49, "current": True, "jobs": 10, "users": 5, "ats": True, "analytics": True},
+        {"id": "enterprise", "name": "Enterprise", "price": None, "current": False, "jobs": 999, "users": 999, "ats": True, "analytics": True},
+    ]
 
 @router.post("/settings/change-password")
 async def change_password(data: dict = Body(...), current_user: User = Depends(require_recruiter)):

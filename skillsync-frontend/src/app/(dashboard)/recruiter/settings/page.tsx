@@ -162,30 +162,20 @@ function AccountTab() {
         <div className="space-y-4">
 
             {/* Personal info */}
-            <Card title="Personal Information">
+            <Card title="Personal Information" desc="Your account details">
                 <div className="grid sm:grid-cols-2 gap-4">
                     {[
-                        { label: "First Name", value: firstName, placeholder: "First name" },
-                        { label: "Last Name", value: lastName, placeholder: "Last name" },
-                        { label: "Job Title", value: "Recruiter", placeholder: "Your role" },
-                        { label: "Phone", value: "+94...", placeholder: "+94..." },
+                        { label: "First Name", value: firstName },
+                        { label: "Last Name", value: lastName },
+                        { label: "Email Address", value: user?.email || "" },
+                        { label: "Role", value: "Recruiter" },
                     ].map((f) => (
                         <div key={f.label}>
                             <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">{f.label}</label>
-                            <input key={f.value} defaultValue={f.value} placeholder={f.placeholder}
-                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 bg-gray-50/30 text-gray-800" />
+                            <input readOnly value={f.value}
+                                className="w-full border border-transparent rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700 cursor-default outline-none" />
                         </div>
                     ))}
-                </div>
-            </Card>
-
-            {/* Email */}
-            <Card title="Email Address" desc="Used for login and notifications">
-                <div className="flex items-center gap-3">
-                    <input key={user?.email} defaultValue={user?.email || ""} className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 bg-gray-50/30" />
-                    <button className="flex-shrink-0 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-                        Verify & Update
-                    </button>
                 </div>
             </Card>
 
@@ -196,6 +186,7 @@ function AccountTab() {
                         <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Current Password</label>
                         <div className="relative">
                             <input type={showCurrentPw ? "text" : "password"} placeholder="••••••••"
+                                autoComplete="new-password"
                                 value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
                                 className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                             <button onClick={() => setShowCurrentPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -207,6 +198,7 @@ function AccountTab() {
                         <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">New Password</label>
                         <div className="relative">
                             <input type={showNewPw ? "text" : "password"} placeholder="••••••••"
+                                autoComplete="new-password"
                                 value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                                 className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                             <button onClick={() => setShowNewPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -218,6 +210,7 @@ function AccountTab() {
                         <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Confirm New Password</label>
                         <div className="relative">
                             <input type={showConfirmPw ? "text" : "password"} placeholder="••••••••"
+                                autoComplete="new-password"
                                 value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                                 className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                             <button onClick={() => setShowConfirmPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -416,43 +409,21 @@ function TeamTab() {
 }
 
 function BillingTab() {
-    const [currentPlan] = useState("growth");
     const { data: plans } = useApi<RecruiterPlan[]>(() => getPlans(), []);
+    const currentPlanObj = plans?.find(p => (p as any).current) || { id: "free", name: "Free", price: 0 };
 
     return (
         <div className="space-y-4">
             {/* Current plan */}
-            <Card title="Current Plan" desc="Your workspace is on the Growth plan">
-                <div className="flex items-center gap-4 p-3 rounded-lg border border-blue-200 bg-blue-50/40 mb-4">
-                    <div className="w-10 h-10 rounded-lg bg-blue-700 flex items-center justify-center flex-shrink-0">
-                        <Crown size={18} className="text-white" />
+            <Card title="Current Plan" desc="Your active workspace plan">
+                <div className="flex items-center gap-4 p-3 rounded-lg border border-gray-200 bg-gray-50/40">
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                        <Crown size={18} className="text-gray-400" />
                     </div>
                     <div>
-                        <p className="text-sm font-bold text-gray-900">Growth Plan</p>
-                        <p className="text-[11px] text-gray-500">USD $49/month · Renews March 27, 2026</p>
+                        <p className="text-sm font-bold text-gray-900">{currentPlanObj.name} Plan</p>
+                        <p className="text-[11px] text-gray-500">{currentPlanObj.price && currentPlanObj.price > 0 ? `USD $${currentPlanObj.price}/month` : "Free Tier"}</p>
                     </div>
-                    <button className="ml-auto text-xs text-gray-600 hover:text-red-700 border border-gray-200 rounded px-2.5 py-1.5 transition-colors">
-                        Cancel Plan
-                    </button>
-                </div>
-
-                {/* Usage */}
-                <div className="grid sm:grid-cols-3 gap-3">
-                    {[
-                        { label: "Active Jobs", used: 4, max: 10 },
-                        { label: "Team Members", used: 3, max: 5 },
-                        { label: "Candidates/mo", used: 127, max: 500 },
-                    ].map((u) => (
-                        <div key={u.label} className="border border-gray-100 rounded-lg p-3">
-                            <div className="flex justify-between mb-1.5">
-                                <span className="text-[11px] font-semibold text-gray-600">{u.label}</span>
-                                <span className="text-[11px] text-gray-400">{u.used}/{u.max}</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-600 rounded-full" style={{ width: `${(u.used / u.max) * 100}%` }} />
-                            </div>
-                        </div>
-                    ))}
                 </div>
             </Card>
 
@@ -460,7 +431,7 @@ function BillingTab() {
             <Card title="Available Plans" desc="Compare plans and upgrade anytime">
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {(plans ?? []).map((plan) => {
-                        const isCurrent = plan.id === currentPlan;
+                        const isCurrent = plan.id === currentPlanObj.id;
                         return (
                             <div key={plan.id} className={`border rounded-lg p-4 flex flex-col gap-3 ${isCurrent ? "border-blue-400 bg-blue-50/60" : "border-gray-200"}`}>
                                 <div className="flex items-start justify-between">
@@ -485,45 +456,6 @@ function BillingTab() {
                             </div>
                         );
                     })}
-                </div>
-            </Card>
-
-            {/* Payment method */}
-            <Card title="Payment Method">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-7 rounded border border-gray-200 bg-white flex items-center justify-center">
-                            <span className="text-[11px] font-black text-blue-700">VISA</span>
-                        </div>
-                        <div>
-                            <p className="text-sm font-semibold text-gray-900">Visa ending in 4242</p>
-                            <p className="text-[11px] text-gray-500">Expires 08 / 27</p>
-                        </div>
-                    </div>
-                    <button className="text-xs text-blue-700 hover:underline font-semibold">Update Card</button>
-                </div>
-            </Card>
-
-            {/* Invoice history */}
-            <Card title="Invoice History">
-                <div className="divide-y divide-gray-50">
-                    {[
-                        { date: "Feb 27, 2026", amount: "$49.00", status: "Paid" },
-                        { date: "Jan 27, 2026", amount: "$49.00", status: "Paid" },
-                        { date: "Dec 27, 2025", amount: "$49.00", status: "Paid" },
-                    ].map((inv) => (
-                        <div key={inv.date} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                            <div>
-                                <p className="text-sm text-gray-800">{inv.date}</p>
-                                <p className="text-[11px] text-gray-400">Growth Plan</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="text-sm font-semibold text-gray-900">{inv.amount}</span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">Paid</span>
-                                <button className="text-[11px] text-blue-700 hover:underline">Download</button>
-                            </div>
-                        </div>
-                    ))}
                 </div>
             </Card>
         </div>
