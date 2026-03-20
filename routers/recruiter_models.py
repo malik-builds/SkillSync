@@ -12,6 +12,7 @@ class RecruiterProfile(Document):
     company_size: str = "11-50"
     company_founded: str = ""
     company_about: str = ""
+    company_logo: str = ""
     company_specialties: List[str] = []
     company_benefits: List[dict] = []
     industry: str = "Technology"

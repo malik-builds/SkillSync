@@ -1,5 +1,5 @@
 import { RecruiterSidebar } from "@/components/layout/RecruiterSidebar";
-import { Search, Bell } from "lucide-react";
+import { Search } from "lucide-react";
 import Link from "next/link";
 
 export default function RecruiterLayout({
@@ -38,11 +38,7 @@ export default function RecruiterLayout({
                         />
                     </div>
 
-                    {/* Notification Bell */}
-                    <button suppressHydrationWarning className="relative text-gray-500 hover:text-blue-600 transition-colors">
-                        <Bell size={19} />
-                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-600 border-2 border-white" />
-                    </button>
+
                 </div>
             </header>
 

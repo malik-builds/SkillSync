@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File
 from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
+import base64
 from auth.models import User
 from auth.dependencies import get_current_user
 from routers.recruiter_models import RecruiterProfile, RecruiterJob
@@ -1164,9 +1165,24 @@ async def get_schedule(current_user: User = Depends(require_recruiter)):
 # ─── Company logo upload stub ──────────────────────────────────────────────────
 
 @router.post("/company/logo")
-async def upload_company_logo(current_user: User = Depends(require_recruiter)):
-    """Stub — logo upload not yet implemented server-side."""
-    return {"logoUrl": None, "message": "Logo upload coming soon."}
+async def upload_company_logo(
+    logo: UploadFile = File(...),
+    current_user: User = Depends(require_recruiter)
+):
+    try:
+        content = await logo.read()
+        b64 = base64.b64encode(content).decode("utf-8")
+        mime = logo.content_type or "image/png"
+        data_url = f"data:{mime};base64,{b64}"
+
+        profile = await get_recruiter_profile(current_user)
+        profile.company_logo = data_url
+        await profile.save()
+
+        return {"logoUrl": data_url}
+    except Exception as e:
+        print(f"[ERROR logo upload]: {e}")
+        raise HTTPException(500, "Internal error")
 
 # ─── Company Profile ──────────────────────────────────────────────────────────
 
@@ -1185,6 +1201,7 @@ async def get_company(current_user: User = Depends(require_recruiter)):
             "founded": profile.company_founded or "",
             "specialties": profile.company_specialties or [],
             "about": profile.company_about or "",
+            "logo": profile.company_logo or "",
             "benefits": profile.company_benefits or [],
             "contact": {
                 "primaryContact": current_user.name,
@@ -1212,6 +1229,7 @@ async def update_company(data: dict = Body(...), current_user: User = Depends(re
             "founded": "company_founded",
             "specialties": "company_specialties",
             "about": "company_about",
+            "logo": "company_logo",
             "benefits": "company_benefits",
         }
         for key, attr in field_map.items():

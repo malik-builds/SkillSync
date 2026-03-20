@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { CompanyProfile } from "@/types/recruiter";
 import { useApi } from "@/lib/hooks/useApi";
-import { getCompanyProfile } from "@/lib/api/recruiter-api";
+import { getCompanyProfile, updateCompanyProfile, uploadCompanyLogo } from "@/lib/api/recruiter-api";
 
 // ─── Inline editable field ─────────────────────────────────────────────────────
 
@@ -64,9 +64,23 @@ export default function CompanyProfilePage() {
         }
     }, [fetchedProfile]);
 
-    const saveEdits = () => {
-        if (draft) setData(draft);
-        setEditing(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const saveEdits = async () => {
+        if (!draft) return;
+        setIsSaving(true);
+        try {
+            const updated = await updateCompanyProfile(draft);
+            const newData = { ...draft, ...updated };
+            setData(newData);
+            setDraft(newData);
+            setEditing(false);
+        } catch (err) {
+            console.error("Failed to save profile:", err);
+            alert("Failed to save changes. Please try again.");
+        } finally {
+            setIsSaving(false);
+        }
     };
     const cancelEdits = () => {
         setDraft(data);
@@ -94,8 +108,8 @@ export default function CompanyProfilePage() {
                             <button onClick={cancelEdits} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
                                 <X size={12} /> Discard
                             </button>
-                            <button onClick={saveEdits} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-md text-xs font-semibold transition-colors shadow-sm">
-                                <Check size={12} /> Save Changes
+                            <button onClick={saveEdits} disabled={isSaving} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-md text-xs font-semibold transition-colors shadow-sm disabled:opacity-50">
+                                <Check size={12} /> {isSaving ? "Saving..." : "Save Changes"}
                             </button>
                         </>
                     ) : (
@@ -120,15 +134,42 @@ export default function CompanyProfilePage() {
 
                 <div className="px-6 pb-6">
                     {/* Logo + basic info row */}
-                    <div className="flex items-end gap-5 -mt-10 mb-5">
+                    <div className="flex items-end gap-5 -mt-10 mb-5 relative z-10">
                         {/* Company logo */}
-                        <div className={`w-20 h-20 rounded-xl bg-white border-4 border-white shadow-lg flex items-center justify-center flex-shrink-0 ${editing ? "ring-2 ring-blue-400 cursor-pointer" : ""}`}>
-                            <div className="w-16 h-16 rounded-lg bg-blue-700 flex items-center justify-center">
-                                <span className="text-white font-black text-xl tracking-tight">TI</span>
-                            </div>
+                        <div 
+                            onClick={() => { if (editing) document.getElementById('logo-upload')?.click(); }}
+                            className={`w-20 h-20 rounded-xl bg-white border-4 border-white shadow-lg flex items-center justify-center flex-shrink-0 overflow-hidden relative ${editing ? "ring-2 ring-blue-400 cursor-pointer hover:opacity-90 transition-opacity" : ""}`}
+                        >
+                            {(d as any).logo ? (
+                                <img src={(d as any).logo} alt="Company Logo" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-blue-700 flex items-center justify-center">
+                                    <span className="text-white font-black text-xl tracking-tight">{d.name ? d.name.substring(0, 2).toUpperCase() : "CO"}</span>
+                                </div>
+                            )}
+                            {editing && (
+                                <input 
+                                    type="file" 
+                                    id="logo-upload" 
+                                    className="hidden" 
+                                    accept="image/*" 
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            update("logo", URL.createObjectURL(file));
+                                            try {
+                                                const res = await uploadCompanyLogo(file);
+                                                update("logo", res.logoUrl);
+                                            } catch (err) {
+                                                console.error("Failed to upload logo:", err);
+                                            }
+                                        }
+                                    }} 
+                                />
+                            )}
                         </div>
                         {editing && (
-                            <span className="text-[10px] text-blue-600 font-semibold -mt-2 mb-1">Click to upload logo</span>
+                            <span className="text-[10px] text-blue-600 font-semibold -mt-2 mb-1">Click logo to upload</span>
                         )}
                     </div>
 
@@ -152,7 +193,7 @@ export default function CompanyProfilePage() {
 
                         {/* Quick stats */}
                         <div className="grid grid-cols-4 gap-4 lg:ml-auto flex-shrink-0">
-                            {data.stats.map((s) => (
+                            {(data.stats || []).map((s) => (
                                 <div key={s.label} className="text-center">
                                     <p className="text-xl font-extrabold text-blue-700">{s.value}</p>
                                     <p className="text-[10px] font-semibold text-gray-500 mt-0.5 leading-tight">{s.label}</p>
