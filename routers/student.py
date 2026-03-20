@@ -259,28 +259,37 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
         # Format recent applications
         recent_apps = []
         for app in sorted(applications, key=lambda a: a.applied_at, reverse=True)[:5]:
-            job = await Job.get(app.job_id)
-            title = ss(job.title) if job else "Unknown Job"
-            company = ss(job.company) if job else "Unknown Company"
+            resolved_job = await resolve_application_job(app.job_id)
             recent_apps.append({
                 "id": str(app.id),
-                "jobTitle": title,
-                "company": company,
+                "jobTitle": ss(resolved_job.get("title")),
+                "company": ss(resolved_job.get("company")),
                 "status": ss(app.status),
                 "appliedDate": app.applied_at.isoformat() if app.applied_at else datetime.utcnow().isoformat(),
             })
             
-        # Always suggest some jobs regardless of gap score
+        # Recommend jobs by real per-job skill match score.
         suggested_jobs = []
-        all_jobs = await Job.find_all().limit(5).to_list()
+        student_skills = set(s.lower() for s in sl(student.skills))
+        all_jobs = await Job.find({"source": "Internal", "is_active": True}).to_list()
+
+        scored_jobs = []
         for job in all_jobs:
+            reqs = sl(job.required_skills)
+            matched = [r for r in reqs if r.lower() in student_skills]
+            match_score = round((len(matched) / max(len(reqs), 1)) * 100)
+            scored_jobs.append((match_score, job))
+
+        scored_jobs.sort(key=lambda x: x[0], reverse=True)
+
+        for match_score, job in scored_jobs[:5]:
             suggested_jobs.append({
                 "id": str(job.id),
                 "title": ss(job.title),
                 "company": ss(job.company),
-                "location": ss(job.location) or "Sri Lanka",
-                "type": "Full-time",
-                "matchScore": sn(gap_score) if gap_score > 0 else 65,
+                "location": ss(job.location),
+                "type": ss(getattr(job, "type", "")),
+                "matchScore": match_score,
                 "tags": sl(job.required_skills)[:3],
             })
                 
@@ -295,9 +304,9 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
 
         # One entry per application (title + status)
         for app in applications:
-            job = await Job.get(app.job_id)
-            company = ss(job.company) if job else "a company"
-            title = ss(job.title) if job else "a job"
+            resolved_job = await resolve_application_job(app.job_id)
+            company = ss(resolved_job.get("company"))
+            title = ss(resolved_job.get("title"))
             label, color = STATUS_LABELS.get(ss(app.status), ("Applied", "blue"))
             activity_title = f"Applied to {title}" if label == "Applied" else f"{label}: {title}"
             activities.append({
