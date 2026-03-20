@@ -287,6 +287,10 @@ export function changeRecruiterPassword(data: { currentPassword: string; newPass
   return api.post<{ success: boolean }>('/recruiter/settings/change-password', data)
 }
 
+export function deleteRecruiterAccount() {
+  return api.delete<{ success: boolean }>('/recruiter/settings/account')
+}
+
 // ── Analytics ──────────────────────────────────────────────
 
 export interface RecruiterAnalytics {

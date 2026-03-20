@@ -1200,6 +1200,44 @@ async def update_settings_account(data: dict = Body(...), current_user: User = D
     """Alias for PUT /recruiter/settings — frontend calls /settings/account."""
     return await update_settings(data, current_user)
 
+@router.delete("/settings/account")
+async def delete_account(current_user: User = Depends(require_recruiter)):
+    try:
+        email = current_user.email
+        
+        profile = await RecruiterProfile.find_one(RecruiterProfile.recruiter_email == email)
+        if profile:
+            await profile.delete()
+
+        recruiter_jobs = await RecruiterJob.find(RecruiterJob.recruiter_email == email).to_list()
+        for r_job in recruiter_jobs:
+            r_job_id = str(r_job.id)
+            
+            student_job = await Job.find_one(Job.recruiter_job_id == r_job_id)
+            if student_job:
+                await student_job.delete()
+            elif profile:
+                student_job = await Job.find_one(Job.title == r_job.title, Job.company == profile.company_name, {"source": "Internal"})
+                if student_job:
+                    await student_job.delete()
+            
+            apps = await Application.find(Application.job_id == r_job_id).to_list()
+            for app in apps:
+                await app.delete()
+                
+            await r_job.delete()
+
+        conversations = await Conversation.find({"participants": email}).to_list()
+        for convo in conversations:
+            await convo.delete()
+
+        await current_user.delete()
+        
+        return {"success": True}
+    except Exception as e:
+        print(f"[ERROR delete account]: {e}")
+        raise HTTPException(500, "Internal error")
+
 @router.get("/settings/notifications")
 async def get_notification_settings(current_user: User = Depends(require_recruiter)):
     try:

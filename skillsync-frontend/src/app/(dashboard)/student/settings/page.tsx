@@ -297,9 +297,6 @@ export default function SettingsPage() {
     };
 
     const onDeleteAccount = async () => {
-        const confirmDelete = window.prompt("Type DELETE to confirm account deletion.");
-        if (confirmDelete !== "DELETE") return;
-
         try {
             setDeletingAccount(true);
             await deleteAccount();

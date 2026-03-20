@@ -100,6 +100,55 @@ function InviteModal({ onClose }: { onClose: () => void }) {
     );
 }
 
+// ─── Delete Account modal ──────────────────────────────────────────────────────
+
+function DeleteAccountModal({ onClose, onConfirm, isDeleting }: { onClose: () => void; onConfirm: () => void; isDeleting: boolean }) {
+    const [confirmText, setConfirmText] = useState("");
+    const isReady = confirmText === "DELETE";
+
+    return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                    <h3 className="text-sm font-bold text-red-600 flex items-center gap-2">
+                        <Trash2 size={16} /> Delete Account
+                    </h3>
+                    <button onClick={onClose} disabled={isDeleting} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 disabled:opacity-50"><X size={14} /></button>
+                </div>
+                <div className="p-5 space-y-4">
+                    <p className="text-sm text-gray-700">
+                        Are you sure you want to permanently delete your account and <strong>ALL</strong> associated company data?
+                    </p>
+                    <div className="bg-red-50 p-3 rounded-lg border border-red-100">
+                        <p className="text-[11px] text-red-700 font-semibold mb-2">
+                            Warning: This action cannot be undone. All active jobs, candidates, and team members will lose access immediately.
+                        </p>
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                            Type <span className="text-red-600 font-bold select-all">DELETE</span> to confirm
+                        </label>
+                        <input
+                            type="text"
+                            value={confirmText}
+                            onChange={(e) => setConfirmText(e.target.value)}
+                            placeholder="DELETE"
+                            disabled={isDeleting}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-red-500"
+                        />
+                    </div>
+                </div>
+                <div className="flex gap-2 px-5 pb-5">
+                    <button onClick={onClose} disabled={isDeleting} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-semibold transition-colors disabled:opacity-50">Cancel</button>
+                    <button onClick={onConfirm} disabled={!isReady || isDeleting} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50">
+                        <Trash2 size={14} /> {isDeleting ? "Deleting..." : "Delete Account"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Tab views ─────────────────────────────────────────────────────────────────
 
 function AccountTab() {
@@ -110,10 +159,25 @@ function AccountTab() {
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
 
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
+
+    const handleDeleteAccount = async () => {
+        try {
+            setIsDeleting(true);
+            const { deleteRecruiterAccount } = await import('@/lib/api/recruiter-api');
+            await deleteRecruiterAccount();
+            window.location.href = "/login";
+        } catch (err: any) {
+            setError(err.response?.data?.detail || "Failed to delete account.");
+            setIsDeleting(false);
+            setShowDeleteModal(false);
+        }
+    };
 
     const handleSave = async () => {
         setError("");
@@ -229,7 +293,9 @@ function AccountTab() {
                         <p className="text-sm font-semibold text-red-700">Delete Account</p>
                         <p className="text-xs text-gray-500 mt-0.5">Permanently remove your account and all company data.</p>
                     </div>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-700 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors">
+                    <button 
+                        onClick={() => setShowDeleteModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-700 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors">
                         <Trash2 size={12} /> Delete Account
                     </button>
                 </div>
@@ -240,6 +306,14 @@ function AccountTab() {
                     {isSaving ? "Saving..." : saved ? <><Check size={13} /> Saved!</> : "Save Changes"}
                 </button>
             </div>
+
+            {showDeleteModal && (
+                <DeleteAccountModal
+                    onClose={() => setShowDeleteModal(false)}
+                    onConfirm={handleDeleteAccount}
+                    isDeleting={isDeleting}
+                />
+            )}
         </div>
     );
 }
