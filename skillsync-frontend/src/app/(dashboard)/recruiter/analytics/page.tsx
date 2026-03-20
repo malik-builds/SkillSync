@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, BarChart, Bar, Cell,
-    PieChart, Pie, Sector, FunnelChart, Funnel, LabelList,
+    PieChart, Pie, Sector,
 } from "recharts";
 import {
     Download, TrendingUp, TrendingDown, Users, Clock,
@@ -103,11 +103,6 @@ export default function AnalyticsPage() {
     const sourceData = analytics?.sources ?? [];
     const skillDemand = analytics?.skillDemand ?? [];
     const jobPerformance = analytics?.jobPerformance ?? [];
-
-    const funnelStart = funnelData.length > 0 ? funnelData[0].value : 0;
-    const overallConversion = funnelData.length > 0 && funnelStart > 0
-        ? ((funnelData[funnelData.length - 1].value / funnelStart) * 100).toFixed(1)
-        : "0";
 
     const hasAnyAnalyticsData =
         trendData.length > 0 ||
@@ -385,87 +380,6 @@ export default function AnalyticsPage() {
                     </div>
                 </Section>
             </div>
-
-            {/* ── Conversion Funnel — Recharts FunnelChart ──────────────────────
-                WHY FUNNEL CHART: Purpose-built for pipeline/drop-off data.
-                The tapering shape instantly communicates volume loss at each
-                stage — the core story of a recruiting funnel. Custom progress
-                bars completely lose this visual metaphor.
-            ─────────────────────────────────────────────────────────────────── */}
-            <Section
-                title="Conversion Funnel"
-                action={
-                    <span className="text-[11px] text-gray-500">
-                        Overall: <span className="font-bold text-green-700">{overallConversion}%</span>
-                        <span className="ml-2 text-gray-400">· Industry avg: 2.5%</span>
-                        <span className="ml-2 font-semibold text-green-600">↑ Above Average</span>
-                    </span>
-                }
-            >
-                <div className="flex flex-col md:flex-row items-center gap-6">
-                    {/* Funnel chart */}
-                    <div className="flex-shrink-0">
-                        <ResponsiveContainer width={300} height={280} minHeight={0} minWidth={0}>
-                            <FunnelChart>
-                                <Tooltip
-                                    content={({ active, payload }) => {
-                                        if (!active || !payload?.length) return null;
-                                        const d = payload[0].payload;
-                                        const pct = funnelStart > 0 ? ((d.value / funnelStart) * 100).toFixed(0) : "0";
-                                        return (
-                                            <div className="bg-gray-900 text-white rounded-lg px-3 py-2.5 shadow-xl text-[11px]">
-                                                <p className="font-bold text-white">{d.name}</p>
-                                                <p className="text-gray-300 mt-0.5">{d.value} candidates · {pct}%</p>
-                                            </div>
-                                        );
-                                    }}
-                                />
-                                <Funnel dataKey="value" data={funnelData} isAnimationActive>
-                                    <LabelList
-                                        position="right"
-                                        content={(props: unknown) => {
-                                            const { value, x, y, width, height } = props as { value?: number; x?: number; y?: number; width?: number; height?: number };
-                                            const item = funnelData.find((f) => f.value === value);
-                                            if (!item) return null;
-                                            const pct = funnelStart > 0 ? ((item.value / funnelStart) * 100).toFixed(0) : "0";
-                                            return (
-                                                <text
-                                                    x={Number(x) + Number(width) + 8}
-                                                    y={Number(y) + Number(height) / 2}
-                                                    fill="#6B7280"
-                                                    fontSize={10}
-                                                    dominantBaseline="middle"
-                                                >
-                                                    {item.value} ({pct}%)
-                                                </text>
-                                            );
-                                        }}
-                                    />
-                                </Funnel>
-                            </FunnelChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    {/* Stage legend + drop-off detail */}
-                    <div className="flex-1 space-y-3 min-w-0">
-                        {funnelData.map((step, i) => {
-                            const dropPct = i > 0
-                                ? (((funnelData[i - 1].value - step.value) / funnelData[i - 1].value) * 100).toFixed(0)
-                                : null;
-                            return (
-                                <div key={step.name} className="flex items-center gap-3">
-                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: step.fill }} />
-                                    <span className="text-xs text-gray-700 w-28 flex-shrink-0">{step.name}</span>
-                                    <span className="text-xs font-bold text-gray-900 w-6">{step.value}</span>
-                                    {dropPct && (
-                                        <span className="text-[10px] text-red-500 font-medium">↓ {dropPct}% drop</span>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </Section>
 
             {/* ── Job Performance ── */}
             <Section title="Job Performance Comparison">
