@@ -398,11 +398,11 @@ export default function RecruiterDashboard() {
     return (
         <div className="space-y-5">
             {/* Greeting Banner / Header */}
-            {showBanner ? (
+            {showBanner && dashboard && dashboard.stats?.newApplicants > 0 ? (
                 <GreetingBanner
                     onDismiss={handleDismiss}
-                    name={dashboard?.stats?.recruiterName ?? "Recruiter"}
-                    count={dashboard?.stats?.newApplicants ?? 0}
+                    name={dashboard.stats.recruiterName ?? "Recruiter"}
+                    count={dashboard.stats.newApplicants}
                 />
             ) : (
                 <h1 className="text-xl font-bold text-gray-900" suppressHydrationWarning>{getGreeting()}, {dashboard?.stats?.recruiterName?.split(" ")[0] ?? "there"} 👋</h1>

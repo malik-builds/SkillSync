@@ -145,9 +145,15 @@ export function addApplicationNote(applicationId: string, note: string) {
 export interface TalentSearchParams {
   search?: string
   skills?: string[]
+  niceToHave?: string[]
   universities?: string[]
   experience?: string
   availability?: string
+  gradYears?: number[]
+  githubActive?: boolean
+  locations?: string[]
+  salaryMin?: number
+  salaryMax?: number
   sort?: string
   page?: number
   limit?: number
@@ -160,18 +166,35 @@ export interface TalentSearchResponse {
   totalPages: number
 }
 
-export function searchTalent(params?: TalentSearchParams) {
-  const urlParams = new URLSearchParams()
-  if (params?.search) urlParams.set('search', params.search)
-  if (params?.skills?.length) urlParams.set('skills', params.skills.join(','))
-  if (params?.universities?.length) urlParams.set('universities', params.universities.join(','))
-  if (params?.experience) urlParams.set('experience', params.experience)
-  if (params?.availability) urlParams.set('availability', params.availability)
-  if (params?.sort) urlParams.set('sort', params.sort)
-  if (params?.page) urlParams.set('page', String(params.page))
-  if (params?.limit) urlParams.set('limit', String(params.limit))
-  const query = urlParams.toString() ? `?${urlParams}` : ''
-  return api.get<TalentSearchResponse>(`/recruiter/talent${query}`)
+// Ensure the endpoint matches what's used in FastAPI: `/talent`
+export async function searchTalent(params?: TalentSearchParams): Promise<TalentSearchResponse> {
+  const query = new URLSearchParams()
+  if (params?.search) query.append("search", params.search)
+  if (params?.skills && params.skills.length > 0) {
+    query.append("skills", params.skills.join(","))
+  }
+  if (params?.niceToHave && params.niceToHave.length > 0) {
+    query.append("nice_to_have", params.niceToHave.join(","))
+  }
+  if (params?.universities && params.universities.length > 0) {
+    query.append("universities", params.universities.join(","))
+  }
+  if (params?.gradYears && params.gradYears.length > 0) {
+    query.append("grad_years", params.gradYears.join(","))
+  }
+  if (params?.locations && params.locations.length > 0) {
+    query.append("locations", params.locations.join(","))
+  }
+  if (params?.salaryMin !== undefined) query.append("salary_min", params.salaryMin.toString())
+  if (params?.salaryMax !== undefined) query.append("salary_max", params.salaryMax.toString())
+  if (params?.githubActive !== undefined) query.append("github_active", params.githubActive.toString())
+  if (params?.experience) query.append("experience", params.experience)
+  if (params?.availability) query.append("availability", params.availability)
+  if (params?.sort) query.append("sort", params.sort)
+  if (params?.page) query.append("page", String(params.page))
+  if (params?.limit) query.append("limit", String(params.limit))
+  const queryString = query.toString() ? `?${query}` : ''
+  return api.get<TalentSearchResponse>(`/recruiter/talent${queryString}`)
 }
 
 export function getCandidateDetail(candidateId: string) {

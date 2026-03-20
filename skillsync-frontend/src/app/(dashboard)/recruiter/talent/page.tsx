@@ -9,15 +9,15 @@ import {
 } from "lucide-react";
 import { Candidate } from "@/types/recruiter";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { useApi } from "@/lib/hooks/useApi";
-import { searchTalent, TalentSearchResponse, createConversation } from "@/lib/api/recruiter-api";
+import { searchTalent, createConversation } from "@/lib/api/recruiter-api";
 import { Send } from "lucide-react";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const UNIVERSITIES = ["University of Colombo", "University of Moratuwa", "SLIIT", "NSBM", "IIT", "Other"];
+const UNIVERSITIES = ["University of Colombo", "University of Moratuwa", "SLIIT", "NSBM", "Informatics Institute of Technology", "Other"];
 const ALL_SKILLS = ["Python", "React", "Node.js", "MongoDB", "Docker", "AWS", "Django", "PostgreSQL",
     "TypeScript", "Kubernetes", "Git", "Java", "Go", "Next.js", "Redis", "GraphQL"];
+const NICE = ["HTML/CSS", "Figma", "UI/UX", "Tailwind CSS", "Storybook", "Jest", "Cypress", "Linux"];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -32,11 +32,12 @@ function matchColor(score: number) {
 // ─── Candidate Card ─────────────────────────────────────────────────────────────
 
 function CandidateCard({
-    candidate, onSave, onMessage,
+    candidate, onSave, onMessage, onInvite,
 }: {
     candidate: Candidate;
     onSave: (id: string) => void;
     onMessage: (id: string) => void;
+    onInvite?: (id: string) => void;
 }) {
     const isTopMatch = candidate.matchScore >= 90;
     const matchTextColor = candidate.matchScore >= 85 ? "text-green-600"
@@ -142,7 +143,10 @@ function CandidateCard({
                 >
                     <MessageSquare size={13} /> Message
                 </button>
-                <button className="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold transition-colors shadow-sm">
+                <button 
+                    onClick={() => onInvite?.(candidate.id)}
+                    className="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold transition-colors shadow-sm"
+                >
                     <Users size={13} /> Invite to Apply
                 </button>
             </div>
@@ -211,17 +215,18 @@ function SaveSearchModal({ onClose, onSave }: { onClose: () => void; onSave: (na
 
 // ─── Message Modal ──────────────────────────────────────────────────────────────
 
-function MessageModal({ candidateId, candidateName, candidateEmail, onClose, onSuccess }: {
+function MessageModal({ candidateId, candidateName, candidateEmail, initialMessage, onClose, onSuccess }: {
     candidateId: string;
     candidateName: string;
     candidateEmail: string;
+    initialMessage?: string;
     onClose: () => void;
     onSuccess: (msg: string) => void;
 }) {
     const { user } = useAuth();
     const recruiterName = user?.fullName?.split(" ")[0] || "there";
 
-    const [message, setMessage] = useState(`Hi ${candidateName.split(" ")[0]},\n\nI came across your profile on SkillSync and I think you could be a great fit for an opportunity at our company. Would you be open to a brief chat?\n\nBest regards,\n${user?.fullName || "Recruiter"}`);
+    const [message, setMessage] = useState(initialMessage || `Hi ${candidateName.split(" ")[0]},\n\nI came across your profile on SkillSync and I think you could be a great fit for an opportunity at our company. Would you be open to a brief chat?\n\nBest regards,\n${user?.fullName || "Recruiter"}`);
     const [sending, setSending] = useState(false);
 
     const handleSend = async () => {
@@ -288,15 +293,14 @@ function MessageModal({ candidateId, candidateName, candidateEmail, onClose, onS
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function FindTalentPage() {
-    const { data: fetchedData, loading, error, refetch } = useApi<TalentSearchResponse>(() => searchTalent(), []);
-
-    // Search bar
+    const { user } = useAuth();
+    
+    // ── Filter state ────────────────────────────────────────────────────────
     const [searchInput, setSearchInput] = useState("");
-    const [searchSkills, setSearchSkills] = useState<string[]>(["Python", "React"]);
+    const [searchSkills, setSearchSkills] = useState<string[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
 
-    // Filters
     const [niceToHave, setNiceToHave] = useState<string[]>([]);
     const [universities, setUniversities] = useState<string[]>([]);
     const [gradYears, setGradYears] = useState<number[]>([]);
@@ -308,16 +312,93 @@ export default function FindTalentPage() {
     const [availability, setAvailability] = useState<string[]>([]);
     const [sortBy, setSortBy] = useState<"match" | "score" | "recent">("match");
 
-    // UI state
+    // ── Data state ──────────────────────────────────────────────────────────
     const [candidates, setCandidates] = useState<Candidate[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    // ── UI state ────────────────────────────────────────────────────────────
     const [showSaveModal, setShowSaveModal] = useState(false);
-    const [messageTarget, setMessageTarget] = useState<string | null>(null);
+    const [messageTarget, setMessageTarget] = useState<{ id: string, initialMessage?: string } | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [savedSearches, setSavedSearches] = useState<string[]>([]);
 
+    // ── Core fetch function ─────────────────────────────────────────────────
+    // Called on mount (no filters) and whenever user clicks Apply / Search.
+    // Uses the CURRENT state values directly — no stale-closure risk.
+    const doSearch = async (opts?: {
+        skills?: string[];
+        niceToHave?: string[];
+        universities?: string[];
+        gradYears?: number[];
+        experience?: string;
+        githubActive?: boolean;
+        locations?: string[];
+        salaryMin?: number;
+        salaryMax?: number;
+        availability?: string[];
+    }) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const params = opts ?? {};
+            const data = await searchTalent({
+                skills: params.skills ?? [],
+                niceToHave: params.niceToHave ?? [],
+                universities: params.universities ?? [],
+                gradYears: params.gradYears ?? [],
+                experience: params.experience ?? "",
+                githubActive: params.githubActive ?? false,
+                locations: params.locations ?? [],
+                salaryMin: params.salaryMin ?? 0,
+                salaryMax: params.salaryMax ?? 150,
+                availability: (params.availability ?? []).join(","),
+            });
+            setCandidates(data.candidates);
+        } catch (e: unknown) {
+            const msg = e && typeof e === "object" && "error" in e
+                ? (e as { error: string }).error
+                : "Failed to load talent";
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Re-fetch automatically when any filter state changes.
+    // We use a 400ms debounce so that sliding the salary or clicking checkboxes rapidly doesn't spam the API.
     useEffect(() => {
-        if (fetchedData) setCandidates(fetchedData.candidates);
-    }, [fetchedData]);
+        const timeoutId = setTimeout(() => {
+            doSearch({
+                skills: searchSkills,
+                niceToHave,
+                universities,
+                gradYears,
+                experience,
+                githubActive,
+                locations,
+                salaryMin,
+                salaryMax,
+                availability,
+            });
+        }, 400);
+        return () => clearTimeout(timeoutId);
+    }, [searchSkills, niceToHave, universities, gradYears, experience, githubActive, locations, salaryMin, salaryMax, availability]);
+
+    const applyFilters = () => {
+        doSearch({
+            skills: searchSkills,
+            niceToHave,
+            universities,
+            gradYears,
+            experience,
+            githubActive,
+            locations,
+            salaryMin,
+            salaryMax,
+            availability,
+        });
+    };
 
     const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -357,29 +438,79 @@ export default function FindTalentPage() {
         setSalaryMin(0);
         setSalaryMax(150);
         setAvailability([]);
+        doSearch(); // re-fetch with no filters
     };
 
-    // Filter + sort candidates
+    // Client-side filter + sort on top of what the backend returned.
+    // Provides an accurate secondary filter since backend data format may vary.
     const filtered = useMemo(() => {
         let list = candidates.filter(c => {
-            const skillNames = c.skills.map(s => s.name);
-            if (searchSkills.length && !searchSkills.every(s => skillNames.includes(s))) return false;
-            if (universities.length && !universities.includes(c.university)) return false;
+            const skillNames = c.skills.map(s => s.name.toLowerCase());
+            if (searchSkills.length &&
+                !searchSkills.every(s => skillNames.includes(s.toLowerCase()))) return false;
+            if (universities.length) {
+                const hasSelectedOther = universities.includes("Other");
+                // A candidate matches "Other" if their university is missing OR if it doesn't match any of the known names
+                const isOther = !c.university || !UNIVERSITIES.filter(u => u !== "Other").some(u =>
+                    c.university.toLowerCase().includes(u.toLowerCase())
+                );
+
+                const matchesKnown = universities.filter(u => u !== "Other").some(u =>
+                    c.university && c.university.toLowerCase().includes(u.toLowerCase())
+                );
+
+                if (!(matchesKnown || (hasSelectedOther && isOther))) return false;
+            }
             if (gradYears.length && !gradYears.includes(c.graduatingYear)) return false;
             if (experience && c.experience !== experience) return false;
             if (githubActive && (!c.github || !c.github.active)) return false;
-            if (locations.length && !locations.includes(c.location) && !locations.includes("Remote")) return false;
-            if (c.salaryMin > salaryMax || c.salaryMax < salaryMin) return false;
+            if (locations.length) {
+                const locLower = c.location.toLowerCase();
+                const anyMatch = locations.some(l =>
+                    l.toLowerCase() === "remote"
+                        ? locLower.includes("remote")
+                        : locLower.includes(l.toLowerCase())
+                );
+                if (!anyMatch) return false;
+            }
+            if ((c.salaryMin > 0 || c.salaryMax > 0) &&
+                (c.salaryMin > salaryMax || c.salaryMax < salaryMin)) return false;
             if (availability.length && !availability.includes(c.availabilityStatus)) return false;
             return true;
         });
 
-        if (sortBy === "match") list = [...list].sort((a, b) => b.matchScore - a.matchScore);
-        else if (sortBy === "score") list = [...list].sort((a, b) => b.overallScore - a.overallScore);
-        else list = [...list].sort((a, b) => b.graduatingYear - a.graduatingYear);
+        // Calculate dynamic match score including nice-to-haves
+        const listWithScores = list.map(c => {
+            let dynamicScore = c.matchScore;
+            
+            // Add bonus for nice-to-have skills
+            if (niceToHave.length > 0) {
+                const skillNames = c.skills.map(s => s.name.toLowerCase());
+                const matchCount = niceToHave.filter(nth => skillNames.includes(nth.toLowerCase())).length;
+                if (matchCount > 0) {
+                    // Up to 15% bonus for nice-to-have skills, proportional to how many they have
+                    const bonus = Math.round((matchCount / niceToHave.length) * 15);
+                    dynamicScore = Math.min(100, dynamicScore + bonus);
+                }
+            }
+            
+            return { ...c, dynamicMatchScore: dynamicScore };
+        });
 
-        return list;
-    }, [candidates, searchSkills, universities, gradYears, experience, githubActive, locations, salaryMin, salaryMax, availability, sortBy]);
+        // Sort using the dynamic score
+        let sorted = listWithScores;
+        if (sortBy === "match") sorted = [...sorted].sort((a, b) => b.dynamicMatchScore - a.dynamicMatchScore);
+        else if (sortBy === "score") sorted = [...sorted].sort((a, b) => b.overallScore - a.overallScore);
+        else sorted = [...sorted].sort((a, b) => (b.graduatingYear ?? 0) - (a.graduatingYear ?? 0));
+
+        return sorted;
+    }, [candidates, searchSkills, niceToHave, universities, gradYears, experience, githubActive, locations, salaryMin, salaryMax, availability, sortBy]);
+
+
+
+
+
+
 
     const toggleSave = (id: string) => {
         setCandidates(prev => prev.map(c =>
@@ -390,7 +521,17 @@ export default function FindTalentPage() {
     };
 
     const messageCandidate = (id: string) => {
-        setMessageTarget(id);
+        setMessageTarget({ id });
+    };
+
+    const inviteCandidate = (id: string) => {
+        const c = candidates.find(x => x.id === id);
+        const name = c?.name.split(" ")[0] || "there";
+        const recruiterName = user?.fullName || "Recruiter";
+        setMessageTarget({ 
+            id, 
+            initialMessage: `Hi ${name},\n\nWe are extremely impressed by your profile and would like to officially invite you to apply for an open role at our company. We believe your skills would be a perfect fit.\n\nPlease let me know if you are interested in learning more about the position!\n\nBest regards,\n${recruiterName}` 
+        });
     };
 
     const LOCS = ["Colombo", "Kandy", "Galle", "Remote"];
@@ -406,9 +547,10 @@ export default function FindTalentPage() {
 
     return (
         <div className="flex flex-col gap-4 h-full">
-            {loading && <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>}
-            {error && <div className="text-center py-12 text-red-500">Failed to load talent. <button onClick={refetch} className="underline">Retry</button></div>}
-            {!loading && !error && (<>
+            {/* Initial load spinner (only shown before first data arrives) */}
+            {loading && candidates.length === 0 && <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>}
+            {error && candidates.length === 0 && <div className="text-center py-12 text-red-500">Failed to load talent. <button onClick={() => doSearch()} className="underline">Retry</button></div>}
+            {(candidates.length > 0 || (!loading && !error)) && (<>
                 {/* ── Page Header ── */}
                 <div className="flex items-center justify-between">
                     <div>
@@ -451,6 +593,12 @@ export default function FindTalentPage() {
                                 <X size={14} />
                             </button>
                         )}
+                        <button
+                            onClick={applyFilters}
+                            className="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors"
+                        >
+                            <Search size={12} /> Search
+                        </button>
                     </div>
 
                     {/* Autocomplete */}
@@ -661,7 +809,7 @@ export default function FindTalentPage() {
                         ) : (
                             <div className="space-y-3">
                                 {filtered.map(c => (
-                                    <CandidateCard key={c.id} candidate={c} onSave={toggleSave} onMessage={messageCandidate} />
+                                    <CandidateCard key={c.id} candidate={c} onSave={toggleSave} onMessage={messageCandidate} onInvite={inviteCandidate} />
                                 ))}
                             </div>
                         )}
@@ -677,9 +825,10 @@ export default function FindTalentPage() {
                 )}
                 {messageTarget && (
                     <MessageModal
-                        candidateId={messageTarget}
-                        candidateName={candidates.find(c => c.id === messageTarget)?.name || ""}
-                        candidateEmail={candidates.find(c => c.id === messageTarget)?.email || ""}
+                        candidateId={messageTarget.id}
+                        candidateName={candidates.find(c => c.id === messageTarget.id)?.name || ""}
+                        candidateEmail={candidates.find(c => c.id === messageTarget.id)?.email || ""}
+                        initialMessage={messageTarget.initialMessage}
                         onClose={() => setMessageTarget(null)}
                         onSuccess={(msg) => showToast(msg)}
                     />

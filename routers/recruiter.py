@@ -661,50 +661,138 @@ async def add_application_note(app_id: str, data: dict = Body(...), current_user
 async def search_talent(
     q: Optional[str] = None,
     skills: Optional[str] = None,
+    universities: Optional[str] = None,
+    experience: Optional[str] = None,
+    availability: Optional[str] = None,
+    gradYears: Optional[str] = None,
+    githubActive: Optional[bool] = None,
+    locations: Optional[str] = None,
+    salaryMin: Optional[int] = None,
+    salaryMax: Optional[int] = None,
     current_user: User = Depends(require_recruiter)
 ):
+    import re
     try:
-        query = {}
+        query: dict = {}
         if q:
             query["name"] = {"$regex": q, "$options": "i"}
 
-        students = await Student.find(query).limit(50).to_list()
+        if universities:
+            uni_list = [u.strip() for u in universities.split(",")]
+            has_other = any(u.lower() == "other" for u in uni_list)
+            # If 'Other' is selected, we skip strict backend university filtering and let the frontend useMemo handle 
+            # the complex logic of matching unlisted/empty universities.
+            if not has_other:
+                uni_regexes = [re.compile(u, re.I) for u in uni_list]
+                if uni_regexes:
+                    if "$or" not in query: query["$or"] = []
+                    query["$or"].extend([
+                        {"course": {"$in": uni_regexes}},
+                        {"education_history.institution": {"$in": uni_regexes}}
+                    ])
+            
+        if experience:
+            if experience == "Fresh":
+                query["work_experience"] = {"$size": 0}
+            else:
+                query["work_experience.0"] = {"$exists": True}
+
+        if gradYears:
+            years = [y.strip() for y in gradYears.split(",")]
+            query["education_history"] = {"$elemMatch": {"year": re.compile("|".join(years))}}
+
+        if githubActive:
+            query["github_url"] = {"$exists": True, "$ne": None}
+            
+        if locations:
+            loc_list = [l.strip() for l in locations.split(",")]
+            loc_regexes = [re.compile(l, re.I) for l in loc_list]
+            if loc_regexes:
+                if "$or" not in query: query["$or"] = []
+                query["$or"].append({"extracted_data.contact_info.location": {"$in": loc_regexes}})
+
+        if salaryMin is not None or salaryMax is not None:
+            salary_query = {}
+            if salaryMin is not None: salary_query["$gte"] = salaryMin
+            if salaryMax is not None: salary_query["$lte"] = salaryMax
+            query["extracted_data.personal_info.expected_salary"] = salary_query
+
+        if availability:
+            avail_list = [a.strip() for a in availability.split(",")]
+            avail_regexes = [re.compile(a, re.I) for a in avail_list]
+            query["extracted_data.personal_info.availability"] = {"$in": avail_regexes}
+
+        students = await Student.find(query).to_list()  # Fetching matching documents strictly based on DB query
+        
         req_skills = [s.strip().lower() for s in skills.split(",")] if skills else []
 
         result = []
         for s in students:
-            s_skills = set(sk.lower() for sk in s.skills)
+            s_skills = set(sk.lower() for sk in getattr(s, "skills", []))
             match_score = 0
             if req_skills:
                 matched = [sk for sk in req_skills if sk in s_skills]
                 match_score = int((len(matched) / len(req_skills)) * 100)
+                # Skip students with zero skill overlap
+                if match_score == 0:
+                    continue
             else:
-                gap = (s.extracted_data or {}).get("gap_report", {})
-                match_score = min(100, int(gap.get("score", 0))) if gap else 0
+                gap = (getattr(s, "extracted_data", {}) or {}).get("gap_report", {})
+                match_score = min(100, int(gap.get("score", 0))) if isinstance(gap, dict) else 0
 
-            ext = s.extracted_data or {}
-            github_report = ext.get("github_report", {}) or {}
+            # Skip incomplete profiles
+            if not (s.name or "").strip():
+                continue
+
+            ext: dict = getattr(s, "extracted_data", {}) or {}
+            github_report: dict = ext.get("github_report", {}) or {}
+            personal_info: dict = ext.get("personal_info", {}) or {}
+            contact_info: dict = ext.get("contact_info", {}) or {}
+            
+            # Use actual DB array parsing for experience
+            work_history = getattr(s, "work_experience", [])
+            total_years = 0
+            for job in work_history:
+                dur = job.get("duration", "")
+                years = re.findall(r'\d{4}', str(dur))
+                if len(years) >= 2:
+                    total_years += max(1, int(years[1]) - int(years[0]))
+                elif len(years) == 1:
+                    total_years += max(1, 2026 - int(years[0])) if "present" in str(dur).lower() or "now" in str(dur).lower() else 1
+
+            exp_val = "Fresh"
+            if total_years >= 5: exp_val = "5+yr"
+            elif total_years >= 2: exp_val = "2-5yr"
+            elif total_years > 0: exp_val = "<2yr"
+
+            uni_name = s.course or ""
+            grad_year = None
+            edu = getattr(s, "education_history", [])
+            if edu and len(edu) > 0:
+                first_edu = edu[0]
+                uni_name = first_edu.get("institution", uni_name)
+                year_str = str(first_edu.get("year", ""))
+                match = re.search(r'\d{4}', year_str)
+                if match: grad_year = int(match.group())
 
             result.append({
                 "id": str(s.id),
                 "name": s.name,
-                "degree": "BSc",
-                "major": getattr(s, "target_role", None) or s.course or "Computer Science",
-                "university": s.course or "University",
-                "graduatingYear": 2025,
-                "graduatingMonth": "June",
-                "location": "Colombo, Sri Lanka",
-                "availableFor": "Any",
-                "experience": "Fresh",
-                "skills": [{"name": sk, "score": 80, "source": "CV"} for sk in s.skills[:10]],
+                "degree": getattr(s, "course", ""),
+                "major": getattr(s, "target_role", None) or s.course or "",
+                "university": uni_name,
+                "graduatingYear": grad_year,
+                "location": str(contact_info.get("location", "")),
+                "availableFor": str(personal_info.get("availability", "")),
+                "experience": exp_val,
+                "skills": [{"name": sk, "score": 80, "source": "CV"} for sk in getattr(s, "skills", [])[:10]],
                 "github": {
-                    "repos": github_report.get("repo_count", 0),
-                    "commits6mo": github_report.get("total_commits", 0),
-                    "active": github_report.get("repo_count", 0) > 0,
+                    "commits6mo": int(github_report.get("total_commits", 0) if isinstance(github_report, dict) else 0),
+                    "active": bool(github_report.get("repo_count", 0) if isinstance(github_report, dict) else False),
                 } if s.github_url else None,
                 "overallScore": match_score,
                 "matchScore": match_score,
-                "availabilityStatus": "Immediate",
+                "availabilityStatus": str(personal_info.get("availability", "")),
                 "salaryMin": 80,
                 "salaryMax": 150,
                 "saved": s.email in (await get_recruiter_profile(current_user)).saved_candidates,
