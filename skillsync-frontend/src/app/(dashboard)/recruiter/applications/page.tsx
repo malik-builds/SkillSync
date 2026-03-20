@@ -617,7 +617,8 @@ export default function RecruiterApplicationsPage() {
                             </div>
                         );
                     })}
-                    <div className="ml-auto flex-shrink-0">
+                    <div className="flex items-center flex-shrink-0 ml-1">
+                        <ChevronRight size={11} className="text-gray-200 mr-2" />
                         <button
                             onClick={() => setSelectedStageStrip(selectedStageStrip === "Rejected" ? "all" : "Rejected")}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${selectedStageStrip === "Rejected"

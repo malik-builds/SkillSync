@@ -44,28 +44,46 @@ const PIPELINE_COLORS: Record<string, string> = {
 
 function HiringPipelineChart({
     stats,
+    pipeline,
 }: {
     stats?: Record<string, number>;
+    pipeline?: Array<Record<string, string | number>>;
 }) {
     const allKeys = Object.keys(PIPELINE_COLORS) as (keyof typeof PIPELINE_COLORS)[];
     const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set(allKeys));
     const [mounted, setMounted] = useState(false);
 
+    // Build chart data only from API values; do not synthesize fake history.
+    const pipelineData = useMemo(() => {
+        if (!mounted) return [];
+        if (pipeline && pipeline.length > 0) {
+            return pipeline.map((point) => ({
+                date: String(point.date || ""),
+                Screening: Number(point.Screening || 0),
+                Qualified: Number(point.Qualified || 0),
+                Interviews: Number(point.Interviews || 0),
+                Offer: Number(point.Offer || 0),
+                Hired: Number(point.Hired || 0),
+                Rejected: Number(point.Rejected || 0),
+            }));
+        }
+
+        if (!stats || Object.keys(stats).length === 0) return [];
+
+        return [{
+            date: "Today",
+            Screening: stats.Screening || 0,
+            Qualified: stats.Qualified || stats.Shortlisted || 0,
+            Interviews: stats.Interviews || stats.Interview || 0,
+            Offer: stats.Offer || 0,
+            Hired: stats.Hired || 0,
+            Rejected: stats.Rejected || 0
+        }];
+    }, [mounted, pipeline, stats]);
+
     useEffect(() => {
         setMounted(true);
     }, []);
-
-    const chartData = useMemo(() => {
-        if (!mounted || !stats || Object.keys(stats).length === 0) return [];
-        return [
-            { name: "Screening", count: stats.Screening || 0, fill: PIPELINE_COLORS.Screening },
-            { name: "Qualified", count: stats.Qualified || stats.Shortlisted || 0, fill: PIPELINE_COLORS.Qualified },
-            { name: "Interviews", count: stats.Interviews || stats.Interview || 0, fill: PIPELINE_COLORS.Interviews },
-            { name: "Offer", count: stats.Offer || 0, fill: PIPELINE_COLORS.Offer },
-            { name: "Hired", count: stats.Hired || 0, fill: PIPELINE_COLORS.Hired },
-            { name: "Rejected", count: stats.Rejected || 0, fill: PIPELINE_COLORS.Rejected },
-        ].filter(d => activeKeys.has(d.name));
-    }, [mounted, stats, activeKeys]);
 
     const toggle = (key: string) => {
         setActiveKeys(prev => {
@@ -80,7 +98,12 @@ function HiringPipelineChart({
         });
     };
 
-    const totalEvents = chartData.reduce((sum, d) => sum + d.count, 0);
+    const totalEvents = pipelineData.reduce((sum: number, d: typeof pipelineData[0]) =>
+        allKeys.reduce((s: number, k) => activeKeys.has(k) ? s + (d[k as keyof typeof d] as number) : s, sum), 0
+    );
+
+    const activeArr = allKeys.filter(k => activeKeys.has(k));
+    const topKey = activeArr[activeArr.length - 1];
 
     if (!mounted) {
         return (
@@ -98,7 +121,7 @@ function HiringPipelineChart({
         );
     }
 
-    if (chartData.length === 0) {
+    if (pipelineData.length === 0) {
         return (
             <div className="bg-white border border-gray-200 rounded-md shadow-sm p-5">
                 <div className="flex items-start justify-between mb-3">
@@ -108,7 +131,7 @@ function HiringPipelineChart({
                     </div>
                 </div>
                 <div className="h-[190px] flex items-center justify-center text-gray-400 text-sm">
-                    No candidates to display
+                    No events to display
                 </div>
             </div>
         );
@@ -119,7 +142,7 @@ function HiringPipelineChart({
             <div className="flex items-start justify-between mb-3">
                 <div>
                     <h2 className="text-sm font-semibold text-gray-900">Hiring Pipeline</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">{totalEvents} candidates in pipeline</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{totalEvents} total events &mdash; last {pipelineData.length} {pipelineData.length === 1 ? "point" : "points"}</p>
                 </div>
                 <div className="flex flex-wrap gap-1.5 justify-end max-w-[66%]">
                     {allKeys.map((label) => {
@@ -143,39 +166,52 @@ function HiringPipelineChart({
                     })}
                 </div>
             </div>
-            <div className="h-[190px] w-full">
-                <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
-                    <BarChart
-                        data={chartData}
-                        barSize={32}
-                        margin={{ top: 10, right: 10, left: -28, bottom: 0 }}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10, fill: "#9CA3AF" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                        <Tooltip
-                            cursor={{ fill: "rgba(99,102,241,0.06)" }}
-                            content={({ active, payload }) => {
-                                if (!active || !payload?.length) return null;
-                                const data = payload[0].payload;
-                                return (
-                                    <div className="bg-gray-900 text-white rounded-lg px-3 py-2 shadow-xl text-[11px] min-w-[120px]">
-                                        <p className="font-semibold text-gray-300 mb-1">{data.name}</p>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="w-2 h-2 rounded-full" style={{ background: data.fill }} />
-                                            <span className="font-bold">{data.count} candidates</span>
+            <div className="h-[190px] overflow-x-auto">
+                <div style={{ minWidth: `${Math.max(320, pipelineData.length * 28)}px`, height: "100%" }}>
+                    <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
+                        <BarChart
+                            data={pipelineData}
+                            barSize={18}
+                            barCategoryGap="28%"
+                            margin={{ top: 4, right: 4, left: -28, bottom: 0 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                            <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#9CA3AF" }} axisLine={false} tickLine={false} interval={2} />
+                            <YAxis tick={{ fontSize: 10, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+                            <Tooltip
+                                cursor={{ fill: "rgba(99,102,241,0.06)" }}
+                                content={({ active, payload, label: lbl }) => {
+                                    if (!active || !payload?.length) return null;
+                                    return (
+                                        <div className="bg-gray-900 text-white rounded-lg px-3 py-2.5 shadow-xl text-[11px] min-w-[140px]">
+                                            <p className="font-semibold text-gray-300 mb-1.5">{lbl}</p>
+                                            {payload.map((entry) => (
+                                                <div key={entry.dataKey as string} className="flex items-center justify-between gap-4 py-0.5">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <span className="w-2 h-2 rounded-full" style={{ background: entry.fill as string }} />
+                                                        <span className="text-gray-300">{String(entry.dataKey)}:</span>
+                                                    </span>
+                                                    <span className="font-bold text-white">{entry.value}</span>
+                                                </div>
+                                            ))}
                                         </div>
-                                    </div>
-                                );
-                            }}
-                        />
-                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                            {chartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
+                                    );
+                                }}
+                            />
+                            {allKeys.map((key) =>
+                                activeKeys.has(key) ? (
+                                    <Bar
+                                        key={key}
+                                        dataKey={key}
+                                        stackId="pipeline"
+                                        fill={PIPELINE_COLORS[key]}
+                                        radius={key === topKey ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+                                    />
+                                ) : null
+                            )}
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
     );
@@ -430,7 +466,8 @@ export default function RecruiterDashboard() {
                         </div>
                     </div>
 
-                    <HiringPipelineChart stats={dashboard?.pipelineStats} />
+                    {/* Hiring Pipeline Chart */}
+                    <HiringPipelineChart stats={dashboard?.pipelineStats} pipeline={dashboard?.pipeline as Array<Record<string, string | number>> | undefined} />
 
                     {/* Active Job Postings Table */}
                     <div className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
