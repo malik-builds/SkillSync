@@ -788,10 +788,19 @@ async def get_missing_skills(current_user: User = Depends(require_university)):
         if not analytics:
             return []
         missing_freq = analytics["missingFreq"]
-        return [
-            {"skill": k.title(), "count": v}
-            for k, v in sorted(missing_freq.items(), key=lambda x: x[1], reverse=True)[:8]
-        ]
+        total = analytics["totalStudents"] or 1
+        
+        results = []
+        for k, v in sorted(missing_freq.items(), key=lambda x: x[1], reverse=True)[:8]:
+            pct = (v / total) * 100
+            severity = "critical" if pct > 50 else "moderate" if pct > 25 else "low"
+            results.append({
+                "skill": k.title(),
+                "studentsLacking": v,
+                "category": "General", # Default category
+                "severity": severity
+            })
+        return results
     except Exception as e:
         raise HTTPException(500, "Internal error")
 

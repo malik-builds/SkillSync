@@ -5,6 +5,7 @@
 import { ApiError } from '@/types/user'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api'
+console.log("API BASE URL:", API_BASE_URL) // ← add this
 
 // ============================================================
 // Token Management
@@ -119,4 +120,6 @@ export const api = {
       method: 'POST',
       body: formData,
     }),
+
+   
 }

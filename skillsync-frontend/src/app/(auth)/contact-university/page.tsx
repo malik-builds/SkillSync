@@ -4,9 +4,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, User, Building2, GraduationCap, CheckCircle2 } from "lucide-react";
+import { Mail, User, Building2, GraduationCap, CheckCircle2, Lock } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { useRouter } from "next/navigation";
 
 import { AuthSplitLayout } from "@/components/auth/AuthSplitLayout";
 import { AuthInput } from "@/components/auth/AuthInput";
@@ -17,17 +19,19 @@ const universitySchema = z.object({
     jobTitle: z.string().min(2, "Required"),
     university: z.string().min(2, "Required"),
     faculty: z.string().min(2, "Required"),
-    email: z.string().email("Invalid email").refine(email => email.endsWith(".ac.lk") || email.endsWith(".edu"), {
-        message: "Please use an official academic email (.ac.lk or .edu)",
-    }),
-    message: z.string().min(10, "Please provide more details"),
+    email: z.string().email("Invalid email"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    message: z.string().optional(),
 });
 
 type UniversityData = z.infer<typeof universitySchema>;
 
 export default function UniversityContactPage() {
-    const [isSuccess, setIsSuccess] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [apiError, setApiError] = useState<string | null>(null);
+    const [toast, setToast] = useState<string | null>(null);
+    const { signUp } = useAuth();
+    const router = useRouter();
 
     const {
         register,
@@ -39,9 +43,28 @@ export default function UniversityContactPage() {
 
     const onSubmit = async (data: UniversityData) => {
         setIsLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        setIsSuccess(true);
-        setIsLoading(false);
+        setApiError(null);
+        try {
+            await signUp({
+                fullName: data.fullName,
+                email: data.email,
+                password: data.password,
+                role: 'university',
+                university: data.university,
+                faculty: data.faculty,
+                jobTitle: data.jobTitle,
+                message: data.message,
+                termsAccepted: true
+            });
+            setToast("Signed in successfully! Redirecting...");
+            setTimeout(() => {
+                router.push('/university/dashboard');
+            }, 1000);
+        } catch (error: unknown) {
+            setApiError((error as { error?: string })?.error || "Registration failed. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const marketingContent = (
@@ -89,16 +112,33 @@ export default function UniversityContactPage() {
                 </p>
             </div>
 
-            <AnimatePresence mode="wait">
-                {!isSuccess ? (
-                    <motion.form
-                        key="form"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onSubmit={handleSubmit(onSubmit)}
-                        className="space-y-5"
-                    >
+            <motion.form
+                key="form"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onSubmit={handleSubmit(onSubmit)}
+                className="space-y-5"
+            >
+                {apiError && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium"
+                            >
+                                {apiError}
+                            </motion.div>
+                        )}
+                        {toast && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 font-medium flex items-center gap-2"
+                            >
+                                <CheckCircle2 size={18} />
+                                {toast}
+                            </motion.div>
+                        )}
                         <div className="grid grid-cols-2 gap-4">
                             <AuthInput label="Full Name" placeholder="Dr. Perera" icon={User} register={register("fullName")} error={errors.fullName} />
                             <AuthInput label="Academic Title" placeholder="Dean / HOD" icon={GraduationCap} register={register("jobTitle")} error={errors.jobTitle} />
@@ -108,6 +148,7 @@ export default function UniversityContactPage() {
                         <AuthInput label="Faculty / Department" placeholder="School of Computing" icon={Building2} register={register("faculty")} error={errors.faculty} />
 
                         <AuthInput label="Official Email" type="email" placeholder="dean@ucsc.cmb.ac.lk" icon={Mail} register={register("email")} error={errors.email} />
+                        <AuthInput label="Password" type="password" placeholder="••••••••" icon={Lock} register={register("password")} error={errors.password} />
 
                         <div className="space-y-2">
                             <label className="block text-sm font-medium text-gray-700">How can we help?</label>
@@ -120,7 +161,7 @@ export default function UniversityContactPage() {
                         </div>
 
                         <GlassButton type="submit" variant="primary" className="w-full py-4 text-base font-bold bg-pink-600 hover:bg-pink-500 border-none" disabled={isLoading}>
-                            {isLoading ? "Submiting..." : "Request Platform Access"}
+                            {isLoading ? "Signing Up..." : "Sign Up"}
                         </GlassButton>
 
                         <p className="text-center text-sm text-gray-500 mt-6">
@@ -130,28 +171,6 @@ export default function UniversityContactPage() {
                             </Link>
                         </p>
                     </motion.form>
-                ) : (
-                    <motion.div
-                        key="success"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="text-center py-12"
-                    >
-                        <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <CheckCircle2 size={40} className="text-green-400" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Request Received</h2>
-                        <p className="text-gray-600 mb-8">
-                            Thank you for your interest. Our partnership team will review your details and contact you at <strong className="text-gray-900">official email</strong> within 24 hours.
-                        </p>
-                        <Link href="/">
-                            <GlassButton variant="secondary" className="px-8">
-                                Return to Home
-                            </GlassButton>
-                        </Link>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </AuthSplitLayout>
     );
 }

@@ -4,6 +4,7 @@ from typing import Optional
 class SignInRequest(BaseModel):
     email: EmailStr
     password: str
+    role: Optional[str] = None
     rememberMe: bool = False
 
 class SignUpRequest(BaseModel):
@@ -11,6 +12,10 @@ class SignUpRequest(BaseModel):
     email: EmailStr
     password: str
     role: str = "student"  # student | recruiter | university
+    university: Optional[str] = None
+    faculty: Optional[str] = None
+    jobTitle: Optional[str] = None
+    message: Optional[str] = None
 
 class OnboardingState(BaseModel):
     cvUploaded: bool

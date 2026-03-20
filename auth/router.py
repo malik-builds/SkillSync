@@ -69,6 +69,28 @@ async def signup(request: SignUpRequest):
                 created_at=datetime.utcnow().isoformat()
             )
             await student.insert()
+    elif request.role == "university":
+        from routers.university_models import UniversityProfile
+        profile = await UniversityProfile.find_one(UniversityProfile.uni_email == request.email)
+        if profile:
+            profile.personal_name = default_name
+            if request.university:
+                profile.institution_name = request.university
+            if request.jobTitle:
+                profile.personal_role = request.jobTitle
+            await profile.save()
+        else:
+            profile = UniversityProfile(
+                uni_email=request.email,
+                personal_name=default_name,
+                institution_name=request.university or "Informatics Institute of Technology",
+                personal_role=request.jobTitle or "Administrator"
+            )
+            if request.faculty:
+                profile.notification_settings["faculty"] = request.faculty
+            if request.message:
+                profile.notification_settings["signup_message"] = request.message
+            await profile.insert()
 
     # Generate token immediately for auto-login
     access_token = create_access_token(data={"sub": user.email, "role": user.role})
@@ -94,6 +116,13 @@ async def signin(request: Request, body: SignInRequest):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
+        )
+
+    # Role validation: ensure the user is logging in through the correct tab
+    if body.role and user.role != body.role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"This account is registered as a {user.role}. Please use the correct login tab.",
         )
         
     access_token = create_access_token(data={"sub": user.email, "role": user.role})

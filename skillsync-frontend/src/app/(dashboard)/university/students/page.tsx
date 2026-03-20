@@ -318,7 +318,7 @@ export default function StudentAnalyticsPage() {
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-3 text-right">
-                                        <span className="text-[12px] font-bold text-gray-700">{sk.studentsLacking.toLocaleString()} students</span>
+                                        <span className="text-[12px] font-bold text-gray-700">{(sk.studentsLacking ?? 0).toLocaleString()} students</span>
                                         <span className="text-[12px] font-extrabold text-gray-700 w-10">{pct}%</span>
                                     </div>
                                 </div>

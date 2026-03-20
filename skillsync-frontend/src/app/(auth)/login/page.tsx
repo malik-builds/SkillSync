@@ -51,6 +51,7 @@ export default function LoginPage() {
                 email: data.email,
                 password: data.password,
                 rememberMe: data.rememberMe ?? false,
+                role: activeRole,
             });
 
             // Redirect based on onboarding status

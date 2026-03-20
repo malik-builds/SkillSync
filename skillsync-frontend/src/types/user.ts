@@ -73,6 +73,9 @@ export interface SignUpRequest {
   university?: string
   programme?: string
   graduationYear?: number
+  jobTitle?: string
+  faculty?: string
+  message?: string
   termsAccepted: boolean
 }
 
@@ -85,6 +88,7 @@ export interface SignUpResponse {
 export interface SignInRequest {
   email: string
   password: string
+  role?: UserRole
   rememberMe: boolean
 }
 
