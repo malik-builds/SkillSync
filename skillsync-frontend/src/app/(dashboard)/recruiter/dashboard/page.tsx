@@ -13,7 +13,7 @@ import {
     ResponsiveContainer, Cell
 } from "recharts";
 import { useApi } from "@/lib/hooks/useApi";
-import { getRecruiterDashboard, RecruiterDashboardData } from "@/lib/api/recruiter-api";
+import { getRecruiterDashboard, RecruiterDashboardData, getSchedule, ScheduleMap, createScheduleEvent } from "@/lib/api/recruiter-api";
 
 const DISMISS_KEY = "recruiter_greeting_dismissed";
 
@@ -249,10 +249,9 @@ function GreetingBanner({ onDismiss, name, count }: { onDismiss: () => void; nam
     );
 }
 
-function MiniCalendar({ onSelectDate }: { onSelectDate: (date: Date | null) => void }) {
+function MiniCalendar({ schedule, onSelectDate }: { schedule: ScheduleMap; onSelectDate: (date: Date | null) => void }) {
     const [offset, setOffset] = useState(0); // offset in 5-day pages
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const schedule = getScheduleData();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -341,8 +340,7 @@ function MiniCalendar({ onSelectDate }: { onSelectDate: (date: Date | null) => v
     );
 }
 
-function SchedulePanel({ date }: { date: Date }) {
-    const schedule = getScheduleData();
+function SchedulePanel({ date, schedule, onAddEvent }: { date: Date; schedule: ScheduleMap; onAddEvent: (date: Date) => void }) {
     const isoKey = date.toISOString().split("T")[0];
     const events = schedule[isoKey] || [];
     const displayDate = `${DAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]}`;
@@ -356,8 +354,13 @@ function SchedulePanel({ date }: { date: Date }) {
     return (
         <div className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
             <div className="border-b border-gray-100 px-4 py-3 bg-stone-50/50 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900">Schedule — {displayDate}</h3>
-                <span className="text-xs text-gray-400">{events.length} event{events.length !== 1 ? "s" : ""}</span>
+                <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Schedule</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">{displayDate}</p>
+                </div>
+                <button onClick={() => onAddEvent(date)} className="p-1.5 rounded-full hover:bg-stone-200 text-gray-700 transition-colors" title="Add Event">
+                    <Plus size={16} />
+                </button>
             </div>
             <div className="p-0">
                 {events.length === 0 ? (
@@ -381,9 +384,43 @@ function SchedulePanel({ date }: { date: Date }) {
 
 export default function RecruiterDashboard() {
     const { data: dashboard } = useApi<RecruiterDashboardData>(() => getRecruiterDashboard());
+    const { data: scheduleMap, refetch: refetchSchedule } = useApi<ScheduleMap>(() => getSchedule());
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [showBanner, setShowBanner] = useState(true);
     const [lastUpdated] = useState("Just now");
+
+    // Add Event Modal State
+    const [eventModalOpen, setEventModalOpen] = useState(false);
+    const [eventDate, setEventDate] = useState<Date | null>(null);
+    const [eventForm, setEventForm] = useState({ title: "", time: "09:00", type: "zoom", detail: "" });
+    const [isSavingEvent, setIsSavingEvent] = useState(false);
+
+    const handleOpenAddEvent = (date: Date) => {
+        setEventDate(date);
+        setEventForm({ title: "", time: "09:00", type: "zoom", detail: "" });
+        setEventModalOpen(true);
+    };
+
+    const handleSaveEvent = async () => {
+        if (!eventDate || !eventForm.title || !eventForm.time) return;
+        setIsSavingEvent(true);
+        try {
+            await createScheduleEvent({
+                date: eventDate.toISOString().split("T")[0],
+                time: eventForm.time,
+                title: eventForm.title,
+                type: eventForm.type,
+                detail: eventForm.detail
+            });
+            refetchSchedule();
+            setEventModalOpen(false);
+        } catch (error) {
+            console.error(error);
+            alert("Failed to save event");
+        } finally {
+            setIsSavingEvent(false);
+        }
+    };
 
     useEffect(() => {
         const dismissed = sessionStorage.getItem(DISMISS_KEY);
@@ -542,11 +579,11 @@ export default function RecruiterDashboard() {
                 <div className="w-[240px] flex-shrink-0 space-y-4">
 
                     {/* Mini Calendar */}
-                    <MiniCalendar onSelectDate={setSelectedDate} />
+                    <MiniCalendar schedule={scheduleMap || {}} onSelectDate={setSelectedDate} />
 
                     {/* Schedule or Top Matches */}
                     {selectedDate ? (
-                        <SchedulePanel date={selectedDate} />
+                        <SchedulePanel date={selectedDate} schedule={scheduleMap || {}} onAddEvent={handleOpenAddEvent} />
                     ) : (
                         <div className="bg-white border border-gray-200 rounded-md shadow-sm">
                             <div className="border-b border-gray-200 px-4 py-3 bg-stone-50/50 flex justify-between items-center">
@@ -596,6 +633,50 @@ export default function RecruiterDashboard() {
                     </button>
                 </div>
             </div>
+            {/* Event Modal */}
+            {eventModalOpen && eventDate && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-stone-50">
+                            <h3 className="font-bold text-gray-900">Add Event</h3>
+                            <button onClick={() => setEventModalOpen(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <p className="text-xs font-medium text-gray-500 uppercase">
+                                For {eventDate.toISOString().split("T")[0]}
+                            </p>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Title</label>
+                                <input type="text" value={eventForm.title} onChange={e => setEventForm({...eventForm, title: e.target.value})} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-md outline-none focus:border-blue-500" placeholder="Interview with Jane" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Time</label>
+                                    <input type="time" value={eventForm.time} onChange={e => setEventForm({...eventForm, time: e.target.value})} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-md outline-none focus:border-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                                    <select value={eventForm.type} onChange={e => setEventForm({...eventForm, type: e.target.value})} className="w-full text-sm px-3 py-1.5 border border-gray-200 rounded-md outline-none focus:border-blue-500 bg-white">
+                                        <option value="zoom">Video Call</option>
+                                        <option value="office">In Office</option>
+                                        <option value="call">Phone Call</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Details</label>
+                                <textarea value={eventForm.detail} onChange={e => setEventForm({...eventForm, detail: e.target.value})} className="w-full text-sm px-3 py-2 border border-gray-200 rounded-md outline-none focus:border-blue-500 resize-none" rows={2} placeholder="Zoom link or room #"></textarea>
+                            </div>
+                        </div>
+                        <div className="px-5 py-3 border-t border-gray-100 bg-stone-50 flex justify-end gap-2">
+                            <button onClick={() => setEventModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">Cancel</button>
+                            <button onClick={handleSaveEvent} disabled={isSavingEvent || !eventForm.title || !eventForm.time} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                                {isSavingEvent ? "Saving..." : "Save Event"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -11,7 +11,7 @@ async def init_db():
     from jobs.models import Job
     from routers.application_models import Application
     from routers.message_models import Conversation
-    from routers.recruiter_models import RecruiterProfile, RecruiterJob
+    from routers.recruiter_models import RecruiterProfile, RecruiterJob, ScheduleEvent
     from routers.university_models import UniversityProfile
     
     await init_beanie(
@@ -19,7 +19,7 @@ async def init_db():
         document_models=[
             models.Student, User, Job, 
             Application, Conversation, 
-            RecruiterProfile, RecruiterJob, 
+            RecruiterProfile, RecruiterJob, ScheduleEvent,
             UniversityProfile
         ]
     )

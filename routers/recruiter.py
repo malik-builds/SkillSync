@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File
+from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
@@ -7,7 +8,7 @@ from io import BytesIO
 from PIL import Image
 from auth.models import User
 from auth.dependencies import get_current_user
-from routers.recruiter_models import RecruiterProfile, RecruiterJob
+from routers.recruiter_models import RecruiterProfile, RecruiterJob, ScheduleEvent
 from routers.application_models import Application
 from routers.message_models import Conversation, Message
 from models import Student
@@ -253,6 +254,58 @@ async def get_dashboard(current_user: User = Depends(require_recruiter)):
         }
     except Exception as e:
         print(f"[ERROR dashboard]: {e}")
+        raise HTTPException(500, "Internal error")
+
+@router.get("/dashboard/schedule")
+async def get_schedule(current_user: User = Depends(require_recruiter)):
+    try:
+        events = await ScheduleEvent.find(
+            ScheduleEvent.recruiter_email == current_user.email
+        ).to_list()
+        
+        # Format for frontend: Record<string, { time, title, type, detail }[]>
+        schedule_data = {}
+        for ev in events:
+            if ev.date not in schedule_data:
+                schedule_data[ev.date] = []
+            schedule_data[ev.date].append({
+                "time": ev.time,
+                "title": ev.title,
+                "type": ev.type,
+                "detail": ev.detail
+            })
+        
+        # Sort events inside each date by time (string sort works as long as it's HH:MM)
+        for date_key in schedule_data:
+            schedule_data[date_key].sort(key=lambda x: x["time"])
+            
+        return schedule_data
+    except Exception as e:
+        print(f"[ERROR schedule GET]: {e}")
+        raise HTTPException(500, "Internal error")
+
+class ScheduleEventCreate(BaseModel):
+    date: str
+    time: str
+    title: str
+    type: str
+    detail: str = ""
+
+@router.post("/dashboard/schedule")
+async def create_schedule_event(data: ScheduleEventCreate, current_user: User = Depends(require_recruiter)):
+    try:
+        new_event = ScheduleEvent(
+            recruiter_email=current_user.email,
+            date=data.date,
+            time=data.time,
+            title=data.title,
+            type=data.type,
+            detail=data.detail
+        )
+        await new_event.insert()
+        return {"success": True, "id": str(new_event.id)}
+    except Exception as e:
+        print(f"[ERROR schedule POST]: {e}")
         raise HTTPException(500, "Internal error")
 
 @router.get("/analytics")

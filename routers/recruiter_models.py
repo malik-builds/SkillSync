@@ -45,3 +45,15 @@ class RecruiterJob(Document):
 
     class Settings:
         name = "recruiter_jobs"
+
+class ScheduleEvent(Document):
+    recruiter_email: str
+    date: str
+    time: str
+    title: str
+    type: str # zoom, office, call
+    detail: str = ""
+    created_at: datetime = Field(default_factory=datetime.now)
+
+    class Settings:
+        name = "recruiter_schedule_events"
