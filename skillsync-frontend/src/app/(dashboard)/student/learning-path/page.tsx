@@ -178,7 +178,7 @@ export default function LearningPathPage() {
                     </div>
 
                     <div className="divide-y divide-gray-100">
-                        {nodes.map((node, index) => {
+                        {nodes.map((node: any, index: number) => {
                             const isCompleted = node.status === 'completed';
                             const isActive = node.status === 'in-progress';
 

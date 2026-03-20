@@ -164,6 +164,7 @@ export interface TrendDataPoint {
   apps: number;
   interviews: number;
   offers: number;
+  hired: number;
   rejected: number;
 }
 

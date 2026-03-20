@@ -20,7 +20,7 @@ interface AuthContextType {
 
   // Auth actions
   signUp: (data: SignUpRequest) => Promise<{ userId: string; email: string }>
-  signIn: (data: SignInRequest) => Promise<{ user: User; redirect: string }>
+  signIn: (data: SignInRequest) => Promise<{ user: User; redirect?: string }>
   logout: () => void
   forgotPassword: (email: string) => Promise<void>
   resetPassword: (token: string, newPassword: string) => Promise<void>

@@ -309,7 +309,7 @@ export function getRecruiterAnalytics(range: DateRange = '30d') {
 }
 
 export function getAnalyticsTrends(range: DateRange) {
-  return api.get<TrendDataPoint[]>(`/recruiter/analytics/trends?range=${range}`)
+  return api.get<TrendDataPoint[]>(`/recruiter/analytics/trends?date_range=${range}`)
 }
 
 export function getSourceBreakdown() {

@@ -315,22 +315,33 @@ async def get_analytics_trends(date_range: str = "30d", current_user: User = Dep
         job_ids = [str(j.id) for j in jobs]
         apps = await Application.find({"job_id": {"$in": job_ids}}).to_list()
 
-        # Bucket by week
         now = datetime.utcnow()
-        num_weeks = max(1, days // 7)
+        
+        if days <= 7:
+            num_points = days
+            label_prefix = "Day"
+            period_days = 1
+        else:
+            num_points = max(1, days // 7)
+            label_prefix = "Wk"
+            period_days = 7
+
         result = []
-        for week_i in range(num_weeks):
-            week_start = now - timedelta(days=(num_weeks - week_i) * 7)
-            week_end = week_start + timedelta(days=7)
-            week_apps = [a for a in apps if week_start <= a.applied_at < week_end]
-            interviews = sum(1 for a in week_apps if a.status in ("interview", "offer", "hired"))
-            offers = sum(1 for a in week_apps if a.status in ("offer", "hired"))
-            rejected = sum(1 for a in week_apps if a.status == "rejected")
+        for i in range(num_points):
+            period_start = now - timedelta(days=(num_points - i) * period_days)
+            period_end = period_start + timedelta(days=period_days)
+            period_apps = [a for a in apps if period_start <= a.applied_at <= period_end]
+            
+            interviews = sum(1 for a in period_apps if a.status in ("interview", "offer", "hired"))
+            offers = sum(1 for a in period_apps if a.status in ("offer", "hired"))
+            hired = sum(1 for a in period_apps if a.status == "hired")
+            rejected = sum(1 for a in period_apps if a.status == "rejected")
             result.append({
-                "label": f"Wk {week_i + 1}",
-                "apps": len(week_apps),
+                "label": f"{label_prefix} {i + 1}",
+                "apps": len(period_apps),
                 "interviews": interviews,
                 "offers": offers,
+                "hired": hired,
                 "rejected": rejected,
             })
         return result

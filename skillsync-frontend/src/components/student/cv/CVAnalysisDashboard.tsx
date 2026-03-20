@@ -22,7 +22,7 @@ export function CVAnalysisDashboard({ result, file, targetRole, onReset }: CVAna
 
     const score = result.gap_report?.score ?? 0;
     const missingCritical = result.gap_report?.missing_critical ?? [];
-    const missingNiceToHave = result.gap_report?.missing_nice_to_have ?? [];
+    const missingNiceToHave = (result.gap_report as any)?.missing_nice_to_have ?? [];
     const extractedSkills = result.extracted_data?.skills ?? [];
     const mustHave = result.market_requirements?.must_have ?? [];
 

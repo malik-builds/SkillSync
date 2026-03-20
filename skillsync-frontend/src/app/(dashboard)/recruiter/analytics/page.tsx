@@ -104,8 +104,7 @@ export default function AnalyticsPage() {
     const { data: FUNNEL_DATA } = useApi(() => getFunnel(), []);
     const { data: JOB_PERFORMANCE } = useApi(() => getJobPerformance(), []);
 
-    const TREND_DATA = trendDataMap as Record<DateRange, { label: string; apps: number; interviews: number; offers: number }[]> | null;
-    const trendData = TREND_DATA?.[range] ?? [];
+    const trendData = (trendDataMap as unknown as any[]) ?? [];
     const funnelData = FUNNEL_DATA ?? [];
     const sourceData = SOURCE_DATA ?? [];
     const skillDemand = SKILL_DEMAND ?? [];
@@ -171,7 +170,8 @@ export default function AnalyticsPage() {
                     {[
                         { key: "apps", color: "#2563EB", label: "Applications" },
                         { key: "interviews", color: "#7C3AED", label: "Interviews" },
-                        { key: "offers", color: "#16A34A", label: "Offers" },
+                        { key: "offers", color: "#F59E0B", label: "Offers" },
+                        { key: "hired", color: "#16A34A", label: "Hired" },
                         { key: "rejected", color: "#EF4444", label: "Rejected" },
                     ].map((s) => (
                         <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-gray-600">
@@ -188,7 +188,8 @@ export default function AnalyticsPage() {
                         <Tooltip content={<DarkTooltip />} />
                         <Line type="monotone" dataKey="apps" stroke="#2563EB" strokeWidth={2} dot={{ fill: "#2563EB", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
                         <Line type="monotone" dataKey="interviews" stroke="#7C3AED" strokeWidth={2} dot={{ fill: "#7C3AED", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
-                        <Line type="monotone" dataKey="offers" stroke="#16A34A" strokeWidth={2} dot={{ fill: "#16A34A", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="offers" stroke="#F59E0B" strokeWidth={2} dot={{ fill: "#F59E0B", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="hired" stroke="#16A34A" strokeWidth={2} dot={{ fill: "#16A34A", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
                         <Line type="monotone" dataKey="rejected" stroke="#EF4444" strokeWidth={2} dot={{ fill: "#EF4444", r: 3.5, strokeWidth: 0 }} activeDot={{ r: 5 }} />
                     </LineChart>
                 </ResponsiveContainer>
