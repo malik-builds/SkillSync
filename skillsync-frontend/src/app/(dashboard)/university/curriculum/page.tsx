@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import {
-    Filter, Download, Share2, RotateCcw, Save,
+    Filter, Download, Share2,
     AlertCircle, ChevronRight, Target, TrendingUp, Zap, Check
 } from "lucide-react";
 import React from "react";
@@ -132,12 +132,6 @@ export default function CurriculumGapAnalysisPage() {
 
     const toggleRow = (id: string) => {
         setExpandedSkillId(prev => prev === id ? null : id);
-    };
-
-    const resetFilters = () => {
-        setSelectedProgramme("All Programmes");
-        setSelectedSeverity("All Severities");
-        setSelectedCategory("All Categories");
     };
 
     const handleExportCsv = () => {
@@ -287,17 +281,6 @@ export default function CurriculumGapAnalysisPage() {
                     <option>Architecture</option>
                 </select>
 
-                <div className="flex-1" /> {/* Spacer */}
-
-                <button 
-                    onClick={resetFilters}
-                    className="text-xs font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1 transition-colors px-2"
-                >
-                    <RotateCcw size={12} /> Reset
-                </button>
-                <button className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors px-2">
-                    <Save size={12} /> Save View
-                </button>
             </div>
 
 
