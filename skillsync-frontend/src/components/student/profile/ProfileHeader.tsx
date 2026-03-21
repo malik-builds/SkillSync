@@ -62,7 +62,8 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
 
                     {/* Socials & Availability */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pt-2">
-                        <div className="flex gap-3">
+                        <div className="space-y-3">
+                            <div className="flex gap-3">
                             {(profile.socials?.github || profile.githubUrl) && (
                                 <Link
                                     href={profile.socials?.github || profile.githubUrl || '#'}
@@ -89,6 +90,15 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
                                 >
                                     <Globe size={18} />
                                 </Link>
+                            )}
+                            </div>
+
+                            {(profile.githubUrl || profile.socials?.github) && (
+                                <div className="flex items-center gap-4 text-xs text-gray-600">
+                                    <span className="font-medium">{profile.githubStats?.repos ?? 0} repos</span>
+                                    <span className="w-1 h-1 rounded-full bg-gray-300" />
+                                    <span className="font-medium">{profile.githubStats?.commits ?? 0} commits</span>
+                                </div>
                             )}
                         </div>
 

@@ -155,6 +155,7 @@ class GitHubAuditorTool:
             # Step 2: Aggregate Portfolio Stats
             total_stars = 0
             total_forks = 0
+            total_commits = 0
             languages_agg = {}
             repo_summaries = []
 
@@ -169,12 +170,20 @@ class GitHubAuditorTool:
                         languages_agg[lang] = languages_agg.get(lang, 0) + bytes_count
                 except: pass
 
+                repo_commit_count = 0
+                try:
+                    repo_commit_count = int(r.get_commits().totalCount or 0)
+                except:
+                    repo_commit_count = 0
+                total_commits += repo_commit_count
+
                 repo_summaries.append({
                     "name": r.name,
                     "stars": r.stargazers_count,
                     "language": r.language,
                     "description": r.description,
-                    "updated_at": r.updated_at.isoformat()
+                    "updated_at": r.updated_at.isoformat(),
+                    "commit_count": repo_commit_count,
                 })
 
             # Calculate Language percentages
@@ -212,6 +221,7 @@ class GitHubAuditorTool:
                 "portfolio_stats": {
                     "total_repos": len(repos),
                     "total_stars": total_stars,
+                    "total_commits": total_commits,
                     "language_distribution": lang_stats
                 },
                 "featured_project": {
@@ -237,6 +247,7 @@ class GitHubAuditorTool:
                 "aggregate_stats": {
                     "total_repos": len(repos),
                     "total_stars": total_stars,
+                    "total_commits": total_commits,
                     "languages": lang_stats
                 },
                 "ai_portfolio_audit": ai_report,

@@ -73,6 +73,10 @@ export interface StudentProfile {
     university?: string;
     course?: string;
     githubUrl?: string;
+    githubStats?: {
+        repos: number;
+        commits: number;
+    };
     gapScore?: number;
 }
 

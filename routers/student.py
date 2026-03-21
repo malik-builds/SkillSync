@@ -227,6 +227,111 @@ def extract_github_skill_set(github_report: dict) -> set:
 
     return skills
 
+def extract_github_activity_stats(github_report: dict) -> dict:
+    """Extract repo and commit counts from multiple GitHub report shapes."""
+    if not isinstance(github_report, dict):
+        return {"repos": 0, "commits": 0}
+
+    repos = 0
+    commits = 0
+
+    def _as_int(value) -> int:
+        try:
+            if value is None:
+                return 0
+            if isinstance(value, bool):
+                return 1 if value else 0
+            if isinstance(value, (int, float)):
+                return int(value)
+            text = str(value).strip().replace(",", "")
+            return int(float(text)) if text else 0
+        except Exception:
+            return 0
+
+    # Flat shape used by recruiter endpoints.
+    repos = max(repos, _as_int(github_report.get("repo_count")))
+    repos = max(repos, _as_int(github_report.get("total_repos")))
+    commits = max(commits, _as_int(github_report.get("total_commits")))
+    commits = max(commits, _as_int(github_report.get("commits")))
+
+    # Nested aggregate shape used by audit/gap analysis paths.
+    if repos == 0 or commits == 0:
+        aggregate_stats = github_report.get("aggregate_stats", {})
+        if isinstance(aggregate_stats, dict):
+            repos = max(repos, _as_int(aggregate_stats.get("repo_count")))
+            repos = max(repos, _as_int(aggregate_stats.get("total_repos")))
+            commits = max(commits, _as_int(aggregate_stats.get("total_commits")))
+            commits = max(commits, _as_int(aggregate_stats.get("commits")))
+
+    # Older nested portfolio format.
+    if repos == 0 or commits == 0:
+        portfolio_stats = github_report.get("portfolio_analysis", {}).get("aggregate_stats", {})
+        if isinstance(portfolio_stats, dict):
+            repos = max(repos, _as_int(portfolio_stats.get("repo_count")))
+            repos = max(repos, _as_int(portfolio_stats.get("total_repos")))
+            commits = max(commits, _as_int(portfolio_stats.get("total_commits")))
+            commits = max(commits, _as_int(portfolio_stats.get("commits")))
+
+    # AI-generated project overview may hold repository count and commit details.
+    if repos == 0 or commits == 0:
+        ai_report = github_report.get("ai_portfolio_audit", {})
+        if isinstance(ai_report, dict):
+            projects = ai_report.get("all_projects_overview", [])
+            if isinstance(projects, list):
+                repos = max(repos, len(projects))
+                commit_sum = 0
+                for proj in projects:
+                    if not isinstance(proj, dict):
+                        continue
+                    commit_sum += max(
+                        _as_int(proj.get("commits")),
+                        _as_int(proj.get("commit_count")),
+                        _as_int(proj.get("total_commits")),
+                        _as_int(proj.get("recent_commits")),
+                    )
+                commits = max(commits, commit_sum)
+
+    # Legacy fallback: repositories list nested under portfolio_analysis.
+    if repos == 0:
+        repos = max(repos, len(sl(github_report.get("portfolio_analysis", {}).get("repositories", []))))
+
+    return {"repos": repos, "commits": commits}
+
+def extract_github_username(github_url: str) -> str:
+    url = ss(github_url).strip().rstrip("/")
+    if not url:
+        return ""
+    match = re.search(r"github\.com/([^/?#]+)", url)
+    if not match:
+        return ""
+    return ss(match.group(1)).strip()
+
+async def fetch_live_github_activity(github_url: str) -> dict:
+    """Fetch lightweight live GitHub activity snapshot for repos/commits."""
+    username = extract_github_username(github_url)
+    if not username:
+        return {"repos": 0, "commits": 0}
+
+    try:
+        token = services.get_api_key("GITHUB_TOKEN")
+        if not token:
+            return {"repos": 0, "commits": 0}
+
+        gh = services.Github(token)
+        user = gh.get_user(username)
+        repos = list(user.get_repos(sort="updated", direction="desc"))
+
+        total_commits = 0
+        for repo in repos[:30]:
+            try:
+                total_commits += int(repo.get_commits().totalCount or 0)
+            except Exception:
+                continue
+
+        return {"repos": len(repos), "commits": total_commits}
+    except Exception:
+        return {"repos": 0, "commits": 0}
+
 def calculate_profile_strength(student: Student) -> int:
     strength = 0
     extracted = student.extracted_data or {}
@@ -900,6 +1005,25 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         
         # Build rich skills list with verification from GitHub
         github_report = extracted.get("github_report") or student.ai_insights or {}
+        github_stats = extract_github_activity_stats(github_report)
+
+        # Backfill commit stats for older records that predate total_commits storage.
+        if student.github_url and github_stats.get("repos", 0) > 0 and github_stats.get("commits", 0) == 0:
+            live_stats = await fetch_live_github_activity(student.github_url)
+            if live_stats.get("repos", 0) > 0:
+                github_stats = live_stats
+                if not isinstance(github_report, dict):
+                    github_report = {}
+                aggregate = github_report.get("aggregate_stats", {})
+                if not isinstance(aggregate, dict):
+                    aggregate = {}
+                aggregate["total_repos"] = live_stats.get("repos", 0)
+                aggregate["total_commits"] = live_stats.get("commits", 0)
+                github_report["aggregate_stats"] = aggregate
+                extracted["github_report"] = github_report
+                student.extracted_data = extracted
+                await student.save()
+
         completed_learning_skills = {
             ss(skill).strip().lower()
             for skill in sl(extracted.get("completed_learning_skills", []))
@@ -983,6 +1107,7 @@ async def get_profile(current_user: User = Depends(get_current_user)):
             "availability": availability,
             "skills": rich_skills,
             "githubUrl": student.github_url or "",
+            "githubStats": github_stats,
             "gapScore": gap_score,
             "profileStrength": calculate_profile_strength(student),
             "projects": projects,
