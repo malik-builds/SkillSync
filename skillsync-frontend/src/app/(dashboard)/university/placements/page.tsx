@@ -348,8 +348,8 @@ export default function PlacementsTrackingPage() {
                         </h2>
 
                         <div className="space-y-5">
-                            {ROLES.slice(0, 3).map(role => (
-                                <div key={role.name}>
+                            {ROLES.slice(0, 3).map((role, index) => (
+                                <div key={`${role.name}-${index}`}>
                                     <div className="flex justify-between text-sm mb-1.5">
                                         <span className="font-medium text-gray-700">{role.name}</span>
                                         <span className="font-bold text-gray-900">{role.students} ({role.percent}%)</span>
