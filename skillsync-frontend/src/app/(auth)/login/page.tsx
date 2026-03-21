@@ -231,7 +231,7 @@ export default function LoginPage() {
             <div className="text-center text-sm text-gray-500 mt-8">
                 Don&apos;t have an account?{" "}
                 <Link href={activeRole === "university" ? "/contact-university" : `/register/${activeRole}`} className="text-blue-600 hover:text-blue-700 hover:underline font-bold">
-                    {activeRole === "university" ? "Request Access" : "Sign up"}
+                    Sign up
                 </Link>
             </div>
         </AuthSplitLayout>
