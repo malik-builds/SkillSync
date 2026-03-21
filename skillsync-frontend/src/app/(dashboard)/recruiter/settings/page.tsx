@@ -233,6 +233,11 @@ function AccountTab() {
                         { label: "Last Name", value: lastName },
                         { label: "Email Address", value: user?.email || "" },
                         { label: "Role", value: "Recruiter" },
+                        { label: "Company", value: user?.companyName || "" },
+                        { label: "Industry", value: user?.industry || "" },
+                        { label: "Company Size", value: user?.size || "" },
+                        { label: "Location", value: user?.location || "" },
+                        { label: "Website", value: user?.website || "" },
                     ].map((f) => (
                         <div key={f.label}>
                             <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">{f.label}</label>

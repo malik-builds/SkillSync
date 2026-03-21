@@ -8,8 +8,8 @@ class RecruiterProfile(Document):
     company_name: str = ""
     company_website: str = ""
     company_tagline: str = ""
-    company_location: str = "Colombo, Sri Lanka"
-    company_size: str = "11-50"
+    company_location: str = ""
+    company_size: str = ""
     company_founded: str = ""
     company_about: str = ""
     company_logo: str = ""
@@ -20,7 +20,7 @@ class RecruiterProfile(Document):
     contact_name: str = ""
     company_specialties: List[str] = []
     company_benefits: List[dict] = []
-    industry: str = "Technology"
+    industry: str = ""
     saved_candidates: List[str] = []  # list of student emails
     notification_settings: dict = {}
 

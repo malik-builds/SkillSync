@@ -65,9 +65,13 @@ export default function RecruiterRegisterPage() {
                 email: step1Data.email,
                 password: step1Data.password,
                 role: "recruiter",
+                companyName: data.companyName,
+                industry: data.industry,
+                size: data.size,
+                location: data.location,
+                website: data.website || undefined,
                 termsAccepted: true
             });
-            // Note: We could also call an API to save recruiter profile details (data) here
             router.push("/recruiter/dashboard");
         } catch (err: any) {
             setApiError(err.error || "Signup failed. Please try again.");

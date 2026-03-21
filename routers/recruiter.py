@@ -27,7 +27,7 @@ async def require_recruiter(current_user: User = Depends(get_current_user)) -> U
 async def get_recruiter_profile(current_user: User) -> RecruiterProfile:
     profile = await RecruiterProfile.find_one(RecruiterProfile.recruiter_email == current_user.email)
     if not profile:
-        profile = RecruiterProfile(recruiter_email=current_user.email, company_name=current_user.name or "My Company")
+        profile = RecruiterProfile(recruiter_email=current_user.email, company_name="")
         await profile.insert()
     return profile
 
@@ -1588,14 +1588,27 @@ async def upload_company_banner(
 async def get_company(current_user: User = Depends(require_recruiter)):
     try:
         profile = await get_recruiter_profile(current_user)
+        # Legacy auto-created recruiter profiles may contain placeholder defaults.
+        # If no company name was ever set, treat those defaults as unset values.
+        industry = profile.industry or ""
+        company_size = profile.company_size or ""
+        company_location = profile.company_location or ""
+        if not (profile.company_name or "").strip():
+            if industry == "Technology":
+                industry = ""
+            if company_size == "11-50":
+                company_size = ""
+            if company_location == "Colombo, Sri Lanka":
+                company_location = ""
+
         return {
             "name": profile.company_name,
             "tagline": profile.company_tagline or "",
             "website": profile.company_website,
             "careersEmail": profile.company_careers_email or current_user.email,
-            "location": profile.company_location or "Colombo, Sri Lanka",
-            "size": profile.company_size or "11-50",
-            "industry": profile.industry,
+            "location": company_location,
+            "size": company_size,
+            "industry": industry,
             "founded": profile.company_founded or "",
             "specialties": profile.company_specialties or [],
             "about": profile.company_about or "",
@@ -1607,7 +1620,7 @@ async def get_company(current_user: User = Depends(require_recruiter)):
                 "role": "Recruiter",
                 "email": profile.company_careers_email or current_user.email,
                 "phone": profile.company_phone or "",
-                "address": profile.company_address or profile.company_location or "",
+                "address": profile.company_address or company_location or "",
             },
             "stats": [],
         }

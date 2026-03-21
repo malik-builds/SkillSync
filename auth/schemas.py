@@ -12,6 +12,11 @@ class SignUpRequest(BaseModel):
     email: EmailStr
     password: str
     role: str = "student"  # student | recruiter | university
+    companyName: Optional[str] = None
+    industry: Optional[str] = None
+    size: Optional[str] = None
+    location: Optional[str] = None
+    website: Optional[str] = None
     university: Optional[str] = None
     faculty: Optional[str] = None
     jobTitle: Optional[str] = None
@@ -41,6 +46,13 @@ class UserOut(BaseModel):
     university: Optional[str] = None
     programme: Optional[str] = None
     graduationYear: Optional[int] = None
+
+    # Recruiter-specific profile fields
+    companyName: Optional[str] = None
+    industry: Optional[str] = None
+    size: Optional[str] = None
+    location: Optional[str] = None
+    website: Optional[str] = None
 
 class AuthResponse(BaseModel):
     token: str

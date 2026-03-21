@@ -47,6 +47,10 @@ export interface User {
   // Recruiter-specific
   companyId?: string
   companyName?: string
+  industry?: string
+  size?: string
+  location?: string
+  website?: string
 
   // University-specific
   universityId?: string
@@ -70,6 +74,11 @@ export interface SignUpRequest {
   email: string
   password: string
   role: UserRole
+  companyName?: string
+  industry?: string
+  size?: string
+  location?: string
+  website?: string
   university?: string
   programme?: string
   graduationYear?: number

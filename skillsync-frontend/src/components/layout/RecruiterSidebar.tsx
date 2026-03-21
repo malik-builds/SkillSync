@@ -44,7 +44,7 @@ export function RecruiterSidebar({ className }: RecruiterSidebarProps) {
     };
 
     const displayName = user?.fullName || user?.email || "Recruiter User";
-    const companyName = user?.companyName || "Company unassigned";
+    const subtitle = user ? user.email : "Loading...";
     const initials = displayName
         .split(" ")
         .map((n) => n[0])
@@ -99,7 +99,7 @@ export function RecruiterSidebar({ className }: RecruiterSidebarProps) {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
-                        <p className="text-[11px] text-gray-500 truncate">{companyName}</p>
+                        <p className="text-[11px] text-gray-500 truncate">{subtitle}</p>
                     </div>
                 </div>
 

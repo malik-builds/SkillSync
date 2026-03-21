@@ -95,6 +95,38 @@ async def signup(request: Request, body: SignUpRequest):
             if body.message:
                 profile.notification_settings["signup_message"] = body.message
             await profile.insert()
+    elif body.role == "recruiter":
+        from routers.recruiter_models import RecruiterProfile
+
+        recruiter_profile = await RecruiterProfile.find_one(RecruiterProfile.recruiter_email == body.email)
+        company_name = body.companyName or ""
+
+        if recruiter_profile:
+            if company_name:
+                recruiter_profile.company_name = company_name
+            if body.website is not None:
+                recruiter_profile.company_website = body.website
+            if body.location is not None:
+                recruiter_profile.company_location = body.location
+            if body.size is not None:
+                recruiter_profile.company_size = body.size
+            if body.industry is not None:
+                recruiter_profile.industry = body.industry
+            recruiter_profile.contact_name = default_name
+            recruiter_profile.company_careers_email = body.email
+            await recruiter_profile.save()
+        else:
+            recruiter_profile = RecruiterProfile(
+                recruiter_email=body.email,
+                company_name=company_name,
+                company_website=body.website or "",
+                company_location=body.location or "",
+                company_size=body.size or "",
+                industry=body.industry or "",
+                contact_name=default_name,
+                company_careers_email=body.email,
+            )
+            await recruiter_profile.insert()
 
     # Generate token immediately for auto-login
     access_token = create_access_token(data={"sub": user.email, "role": user.role})
