@@ -133,6 +133,35 @@ export default function StudentAnalyticsPage() {
     const { data: missingSkillsData } = useApi<MissingSkill[]>(() => getMissingSkills());
     const { data: scoreData } = useApi<ScoreDistributionBin[]>(() => getScoreDistribution());
 
+    const handleExportCsv = () => {
+        const rows: any[][] = [];
+        
+        // Headers
+        rows.push(["Programme Name", "Students Count", "Avg Skill Score", "Profile Completion (%)", "GitHub Rate (%)", "CV Rate (%)", "At Risk"]);
+
+        // Data from PROGRAMMES
+        (programmesData ?? []).forEach(p => {
+            rows.push([
+                p.name,
+                p.students,
+                p.avgScore,
+                p.profileCompletion,
+                p.githubRate,
+                p.cvRate,
+                p.atRisk
+            ]);
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Student_Analytics_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const PROGRAMMES = programmesData ?? [];
     const MISSING_SKILLS = missingSkillsData ?? [];
     const SCORE_DISTRIBUTION_ALL = scoreData ?? [];
@@ -163,8 +192,11 @@ export default function StudentAnalyticsPage() {
                     <h1 className="text-2xl font-bold text-gray-900">Student Analytics</h1>
                     <p className="text-sm text-gray-500 mt-1">Aggregate performance metrics across all programmes · Academic Year 2024/25</p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 bg-white shadow-sm transition-colors">
-                    <Download size={14} /> Export Report
+                <button 
+                    onClick={handleExportCsv}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 bg-white shadow-sm transition-colors"
+                >
+                    <Download size={14} /> Export CSV
                 </button>
             </div>
 

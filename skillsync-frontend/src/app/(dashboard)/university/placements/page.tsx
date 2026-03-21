@@ -27,6 +27,51 @@ export default function PlacementsTrackingPage() {
     const COMPANIES = companiesData ?? [];
     const ROLES = rolesData ?? [];
 
+    const handleExportCsv = () => {
+        const rows: any[][] = [];
+        
+        // --- Section 1: Overall Stats ---
+        rows.push(["PLACEMENT TRACKING SUMMARY - " + new Date().toLocaleDateString()]);
+        rows.push(["Metric", "Value"]);
+        rows.push(["Total Eligible Students", totalEligible]);
+        rows.push(["Actively Seeking", totalSeeking]);
+        rows.push(["Secured Internships", totalSecured]);
+        rows.push(["Success Rate (%)", successRate]);
+        rows.push([]); // Spacer
+
+        // --- Section 2: Programme Success ---
+        rows.push(["PROGRAMME SUCCESS"]);
+        rows.push(["Programme", "Eligible", "Seeking", "Secured", "Success Rate (%)"]);
+        PROGRAMMES.forEach(p => {
+            rows.push([p.name, p.eligible, p.seeking, p.secured, p.rate]);
+        });
+        rows.push([]); // Spacer
+
+        // --- Section 3: Top Hiring Companies ---
+        rows.push(["TOP HIRING COMPANIES"]);
+        rows.push(["Rank", "Company", "Total Interns"]);
+        COMPANIES.forEach(c => {
+            rows.push([c.rank, c.name, c.interns]);
+        });
+        rows.push([]); // Spacer
+
+        // --- Section 4: Role Type Distribution ---
+        rows.push(["ROLE TYPE DISTRIBUTION"]);
+        rows.push(["Role Name", "Students Count", "Percentage of Total (%)"]);
+        ROLES.forEach(r => {
+            rows.push([r.name, r.students, r.percent]);
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Placement_Tracking_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const totalEligible = PROGRAMMES.reduce((a, b) => a + b.eligible, 0);
     const totalSeeking = PROGRAMMES.reduce((a, b) => a + b.seeking, 0);
     const totalSecured = PROGRAMMES.reduce((a, b) => a + b.secured, 0);
@@ -41,8 +86,11 @@ export default function PlacementsTrackingPage() {
                     <p className="text-sm text-gray-500 mt-1">Academic Year 2024/25 · {PROGRAMMES.length} Active Programmes</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
-                        <Download size={13} className="text-gray-500" /> Export Report
+                    <button 
+                        onClick={handleExportCsv}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                    >
+                        <Download size={13} className="text-gray-500" /> Export CSV
                     </button>
                     <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
                         <Share2 size={13} className="text-gray-500" /> Share

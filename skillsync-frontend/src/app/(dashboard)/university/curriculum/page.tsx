@@ -112,6 +112,36 @@ export default function CurriculumGapAnalysisPage() {
         setSelectedCategory("All Categories");
     };
 
+    const handleExportCsv = () => {
+        const rows: any[][] = [];
+        
+        // Headers
+        rows.push(["Skill Name", "Category", "Student Competency (%)", "Market Demand (%)", "Gap Size (%)", "Severity"]);
+
+        // Data
+        filteredSkills.forEach(skill => {
+            const gap = getGap(skill);
+            const severity = getSeverity(gap);
+            rows.push([
+                skill.name,
+                skill.category,
+                skill.studentCompetency,
+                skill.marketDemand,
+                gap,
+                severity.toUpperCase()
+            ]);
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Curriculum_Gap_Analysis_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div className="space-y-6 pb-20">
             {/* ── Header ────────────────────────────────────────────────── */}
@@ -121,8 +151,11 @@ export default function CurriculumGapAnalysisPage() {
                     <p className="text-sm text-gray-500 mt-1">Academic Year 2024/25 · Last Updated: 2 hours ago</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
-                        <Download size={13} className="text-gray-500" /> Export PDF
+                    <button 
+                        onClick={handleExportCsv}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                    >
+                        <Download size={13} className="text-gray-500" /> Export CSV
                     </button>
                     <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
                         <Share2 size={13} className="text-gray-500" /> Share
