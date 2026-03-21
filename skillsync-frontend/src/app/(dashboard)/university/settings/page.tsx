@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     User, Bell, Users, Check, X, Plus,
     Eye, EyeOff, Shield, Trash2,
@@ -199,10 +199,34 @@ function AccountTab() {
     // Form states
     const [formData, setFormData] = useState<Partial<UniversityAccountSettings>>({});
 
+    const hasUnsavedChanges = useMemo(() => {
+        if (!account) return false;
+        const keys: Array<keyof UniversityAccountSettings | "faculty"> = ["personalName", "personalRole", "personalPhone", "faculty"];
+        const current = { ...account, ...formData } as Record<string, unknown>;
+        return keys.some((key) => {
+            const nextVal = String(current[key] ?? "").trim();
+            const baseVal = String((account as Record<string, unknown>)[key] ?? "").trim();
+            return nextVal !== baseVal;
+        });
+    }, [account, formData]);
+
+    useEffect(() => {
+        if (!hasUnsavedChanges) return;
+
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = "";
+        };
+
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, [hasUnsavedChanges]);
+
     const handleSave = async () => {
         try {
             setIsSaving(true);
             await updateUniversityAccount(formData);
+            setFormData({});
             setSaved(true);
             refetch();
             setTimeout(() => setSaved(false), 2500);

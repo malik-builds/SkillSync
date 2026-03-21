@@ -785,7 +785,10 @@ async def update_settings(data: dict = Body(...), current_user: User = Depends(r
         if "accountType" in data: profile.account_type = data["accountType"]
         if "notifications" in data: profile.notification_settings = data["notifications"]
         await profile.save()
-        return {"success": True}
+
+        # Return the full updated account object so frontend forms can
+        # consume a consistent response shape after saving.
+        return await get_settings(current_user)
     except Exception as e:
         raise HTTPException(500, "Internal error")
 
