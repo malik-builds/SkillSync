@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
     Users, Target, Github, FileText,
     ArrowRight, Info,
-    ChevronDown, Download, BookOpen,
+    ChevronDown, Download, BookOpen, Share2, Check
 } from "lucide-react";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -132,6 +132,34 @@ export default function StudentAnalyticsPage() {
     const { data: programmesData } = useApi<Programme[]>(() => getProgrammes());
     const { data: missingSkillsData } = useApi<MissingSkill[]>(() => getMissingSkills());
     const { data: scoreData } = useApi<ScoreDistributionBin[]>(() => getScoreDistribution());
+    const [shared, setShared] = useState(false);
+
+    const handleShare = async () => {
+        const shareData = {
+            title: "SkillSync - Student Analytics Report",
+            text: "Access the aggregate performance metrics for our student cohort on SkillSync.",
+            url: window.location.href,
+        };
+
+        try {
+            if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+                await navigator.share(shareData);
+            } else {
+                await navigator.clipboard.writeText(window.location.href);
+                setShared(true);
+                setTimeout(() => setShared(false), 2000);
+            }
+        } catch (err) {
+            console.error("Share failed:", err);
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                setShared(true);
+                setTimeout(() => setShared(false), 2000);
+            } catch (clipErr) {
+                console.error("Clipboard fallback failed:", clipErr);
+            }
+        }
+    };
 
     const handleExportCsv = () => {
         const rows: any[][] = [];
@@ -176,10 +204,10 @@ export default function StudentAnalyticsPage() {
         ? SCORE_DISTRIBUTION_ALL
         : SCORE_DISTRIBUTION_ALL; // TODO: fetch per-programme distribution via getScoreDistribution(programme)
 
-    const totalInChart = chartData.reduce((a, b) => a + b.count, 0) || 1;
-    const atRiskPct = Math.round((((chartData[0]?.count ?? 0) + (chartData[1]?.count ?? 0)) / totalInChart) * 100);
-    const avgPct = Math.round((((chartData[2]?.count ?? 0) + (chartData[3]?.count ?? 0)) / totalInChart) * 100);
-    const highPct = Math.round(((chartData[4]?.count ?? 0) / totalInChart) * 100);
+    const totalInChart = chartData.reduce((a, b: any) => a + (Number(b?.count) || 0), 0) || 1;
+    const atRiskPct = Math.round((((Number(chartData[0]?.count) || 0) + (Number(chartData[1]?.count) || 0)) / totalInChart) * 100);
+    const avgPct = Math.round((((Number(chartData[2]?.count) || 0) + (Number(chartData[3]?.count) || 0)) / totalInChart) * 100);
+    const highPct = Math.round(((Number(chartData[4]?.count) || 0) / totalInChart) * 100);
 
     const visibleSkills = showAllSkills ? MISSING_SKILLS : MISSING_SKILLS.slice(0, 5);
 
@@ -192,12 +220,23 @@ export default function StudentAnalyticsPage() {
                     <h1 className="text-2xl font-bold text-gray-900">Student Analytics</h1>
                     <p className="text-sm text-gray-500 mt-1">Aggregate performance metrics across all programmes · Academic Year 2024/25</p>
                 </div>
-                <button 
-                    onClick={handleExportCsv}
-                    className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 bg-white shadow-sm transition-colors"
-                >
-                    <Download size={14} /> Export CSV
-                </button>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={handleExportCsv}
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 bg-white shadow-sm transition-colors"
+                    >
+                        <Download size={14} /> Export CSV
+                    </button>
+                    <button 
+                        onClick={handleShare}
+                        className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-semibold shadow-sm transition-all ${
+                            shared ? "bg-green-50 border-green-200 text-green-700" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                        }`}
+                    >
+                        {shared ? <Check size={14} /> : <Share2 size={14} className="text-gray-500" />}
+                        {shared ? "Copied!" : "Share"}
+                    </button>
+                </div>
             </div>
 
             {/* ── KPI Cards ─────────────────────────────────────────────── */}
@@ -339,7 +378,7 @@ export default function StudentAnalyticsPage() {
 
                 <div className="p-5 space-y-4">
                     {visibleSkills.map((sk) => {
-                        const pct = TOTAL_STUDENTS > 0 ? Math.round((sk.studentsLacking / TOTAL_STUDENTS) * 100) : 0;
+                        const pct = TOTAL_STUDENTS > 0 ? Math.round(((sk.studentsLacking ?? 0) / TOTAL_STUDENTS) * 100) : 0;
                         return (
                             <div key={sk.skill}>
                                 <div className="flex items-center justify-between mb-1.5">

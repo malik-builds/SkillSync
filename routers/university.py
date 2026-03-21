@@ -322,7 +322,14 @@ async def get_placements_by_programme(year: Optional[str] = None, current_user: 
         placed = analytics["placedCount"] if analytics else 0
         total = analytics["totalStudents"] if analytics else 0
         rate = analytics["placementRate"] if analytics else 0
-        return [{"programme": "All Programmes", "placed": placed, "seeking": total - placed, "rate": rate}]
+        return [{
+            "name": "All Programmes",
+            "eligible": total,
+            "seeking": total - placed,
+            "secured": placed,
+            "rate": rate,
+            "trend": 0
+        }]
     except Exception:
         raise HTTPException(500, "Internal error")
 

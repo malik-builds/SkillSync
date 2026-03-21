@@ -2,7 +2,7 @@
 
 import React from "react";
 import {
-    Filter, Download, Share2, TrendingUp, Search, Users, Briefcase, ChevronRight
+    Filter, Download, Share2, TrendingUp, Search, Users, Briefcase, ChevronRight, Check
 } from "lucide-react";
 import { ProgrammeData, CompanyData, RoleData } from "@/types/university";
 import { useApi } from "@/lib/hooks/useApi";
@@ -19,6 +19,7 @@ function getStatusLabel(rate: number) {
 // ─── Page Component ───────────────────────────────────────────────────────────
 
 export default function PlacementsTrackingPage() {
+    const [shared, setShared] = React.useState(false);
     const { data: programmesData } = useApi<ProgrammeData[]>(() => getPlacementsByProgramme());
     const { data: companiesData } = useApi<CompanyData[]>(() => getTopCompanies());
     const { data: rolesData } = useApi<RoleData[]>(() => getPlacementsByRole());
@@ -26,6 +27,34 @@ export default function PlacementsTrackingPage() {
     const PROGRAMMES = programmesData ?? [];
     const COMPANIES = companiesData ?? [];
     const ROLES = rolesData ?? [];
+
+    const handleShare = async () => {
+        const shareData = {
+            title: "SkillSync - Placement Tracking Report",
+            text: "Check out the latest placement analytics for our institution on SkillSync.",
+            url: window.location.href,
+        };
+
+        try {
+            if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+                await navigator.share(shareData);
+            } else {
+                await navigator.clipboard.writeText(window.location.href);
+                setShared(true);
+                setTimeout(() => setShared(false), 2000);
+            }
+        } catch (err) {
+            console.error("Share failed:", err);
+            // Fallback to clipboard if share was cancelled or failed
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                setShared(true);
+                setTimeout(() => setShared(false), 2000);
+            } catch (clipErr) {
+                console.error("Clipboard fallback failed:", clipErr);
+            }
+        }
+    };
 
     const handleExportCsv = () => {
         const rows: any[][] = [];
@@ -72,9 +101,14 @@ export default function PlacementsTrackingPage() {
         document.body.removeChild(link);
     };
 
-    const totalEligible = PROGRAMMES.reduce((a, b) => a + b.eligible, 0);
-    const totalSeeking = PROGRAMMES.reduce((a, b) => a + b.seeking, 0);
-    const totalSecured = PROGRAMMES.reduce((a, b) => a + b.secured, 0);
+    const safeNum = (val: any) => {
+        const num = Number(val);
+        return isNaN(num) ? 0 : num;
+    };
+
+    const totalEligible = PROGRAMMES.reduce((a, b: any) => a + safeNum(b.eligible), 0);
+    const totalSeeking = PROGRAMMES.reduce((a, b: any) => a + safeNum(b.seeking), 0);
+    const totalSecured = PROGRAMMES.reduce((a, b: any) => a + safeNum(b.secured), 0);
     const successRate = totalSeeking > 0 ? Math.round((totalSecured / totalSeeking) * 100) : 0;
 
     return (
@@ -92,8 +126,14 @@ export default function PlacementsTrackingPage() {
                     >
                         <Download size={13} className="text-gray-500" /> Export CSV
                     </button>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
-                        <Share2 size={13} className="text-gray-500" /> Share
+                    <button 
+                        onClick={handleShare}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-md text-xs font-semibold shadow-sm transition-all ${
+                            shared ? "bg-green-50 border-green-200 text-green-700" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                        }`}
+                    >
+                        {shared ? <Check size={13} /> : <Share2 size={13} className="text-gray-500" />}
+                        {shared ? "Copied!" : "Share"}
                     </button>
                 </div>
             </div>

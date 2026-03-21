@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import {
     Filter, Download, Share2, RotateCcw, Save,
-    AlertCircle, ChevronRight, Target, TrendingUp, Zap
+    AlertCircle, ChevronRight, Target, TrendingUp, Zap, Check
 } from "lucide-react";
 import React from "react";
 import {
@@ -67,6 +67,34 @@ export default function CurriculumGapAnalysisPage() {
     const [expandedSkillId, setExpandedSkillId] = useState<string | null>(null);
     const [skillsLimit, setSkillsLimit] = useState(7);
     const [viewMode, setViewMode] = useState<"analysis" | "chart">("analysis");
+    const [shared, setShared] = useState(false);
+
+    const handleShare = async () => {
+        const shareData = {
+            title: "SkillSync - Curriculum Gap Analysis",
+            text: "Review the latest curriculum alignment and skill gap analysis for our programs on SkillSync.",
+            url: window.location.href,
+        };
+
+        try {
+            if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+                await navigator.share(shareData);
+            } else {
+                await navigator.clipboard.writeText(window.location.href);
+                setShared(true);
+                setTimeout(() => setShared(false), 2000);
+            }
+        } catch (err) {
+            console.error("Share failed:", err);
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                setShared(true);
+                setTimeout(() => setShared(false), 2000);
+            } catch (clipErr) {
+                console.error("Clipboard fallback failed:", clipErr);
+            }
+        }
+    };
     
     // Filter states
     const [selectedProgramme, setSelectedProgramme] = useState("All Programmes");
@@ -157,8 +185,14 @@ export default function CurriculumGapAnalysisPage() {
                     >
                         <Download size={13} className="text-gray-500" /> Export CSV
                     </button>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
-                        <Share2 size={13} className="text-gray-500" /> Share
+                    <button 
+                        onClick={handleShare}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-md text-xs font-semibold shadow-sm transition-all ${
+                            shared ? "bg-green-50 border-green-200 text-green-700" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                        }`}
+                    >
+                        {shared ? <Check size={13} /> : <Share2 size={13} className="text-gray-500" />}
+                        {shared ? "Copied!" : "Share"}
                     </button>
                 </div>
             </div>
@@ -170,7 +204,7 @@ export default function CurriculumGapAnalysisPage() {
                     <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                     <p className="text-xs font-semibold text-blue-100 uppercase tracking-wider mb-1 relative z-10">Alignment Score</p>
                     <div className="flex items-end gap-2 relative z-10">
-                        <p className="text-3xl font-extrabold tracking-tight">{curriculumData?.stats?.alignmentScore ?? 0}</p>
+                        <p className="text-3xl font-extrabold tracking-tight">{Number(curriculumData?.stats?.alignmentScore) || 0}</p>
                         <p className="text-sm text-blue-200 font-medium mb-1">/100</p>
                     </div>
                     <p className="text-[10px] text-blue-100 mt-1 relative z-10">Industry avg: 71/100</p>
