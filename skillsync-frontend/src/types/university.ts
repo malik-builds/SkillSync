@@ -9,6 +9,10 @@ export interface DashboardAlert {
   detail: string;
   action: string;
   actionHref: string;
+  // Fallbacks for backend inconsistency
+  type?: string;
+  message?: string;
+  date?: string;
 }
 
 export interface RadarDataPoint {
