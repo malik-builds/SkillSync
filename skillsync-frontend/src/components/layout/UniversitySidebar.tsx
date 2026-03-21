@@ -79,7 +79,10 @@ export function UniversitySidebar({ className }: UniversitySidebarProps) {
             {/* Bottom: Institution Card + Sign Out */}
             <div className="p-4 border-t border-gray-100 space-y-3">
                 {/* Institution Card */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-stone-100 border border-gray-100">
+                <Link 
+                    href="/university/settings"
+                    className="flex items-center gap-3 p-3 rounded-md bg-stone-100 border border-gray-100 hover:bg-stone-200 transition-colors cursor-pointer"
+                >
                     <div className="w-9 h-9 rounded bg-blue-700 flex items-center justify-center text-white flex-shrink-0">
                         <GraduationCap size={16} />
                     </div>
@@ -87,7 +90,7 @@ export function UniversitySidebar({ className }: UniversitySidebarProps) {
                         <p className="text-sm font-semibold text-gray-900 truncate">{personalName}</p>
                         <p className="text-[11px] text-gray-500 truncate">{institutionName}</p>
                     </div>
-                </div>
+                </Link>
 
                 <button
                     onClick={() => router.push("/login")}
