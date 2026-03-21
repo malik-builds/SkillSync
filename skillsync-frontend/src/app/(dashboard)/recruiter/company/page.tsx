@@ -12,11 +12,11 @@ import { getCompanyProfile, updateCompanyProfile, uploadCompanyLogo, uploadCompa
 // ─── Inline editable field ─────────────────────────────────────────────────────
 
 function EditableText({
-    value, type = "text", multiline = false, className = "", editing, onChange, placeholder = ""
+    value, type = "text", multiline = false, className = "", editing, onChange, placeholder = "", disabled = false
 }: {
-    value: string; type?: string; multiline?: boolean; className?: string; editing: boolean; onChange: (v: string) => void; placeholder?: string;
+    value: string; type?: string; multiline?: boolean; className?: string; editing: boolean; onChange: (v: string) => void; placeholder?: string; disabled?: boolean;
 }) {
-    if (!editing) return <span className={className}>{value || ""}</span>;
+    if (!editing || disabled) return <span className={className}>{value || ""}</span>;
     if (multiline) {
         return (
             <textarea
@@ -225,7 +225,7 @@ export default function CompanyProfilePage() {
                                     <span key={field} className="flex items-center gap-1.5 text-xs text-gray-600">
                                         <Icon size={12} className="text-gray-400" /> 
                                         {editing ? (
-                                            <EditableText value={val} editing={editing} onChange={(v) => update(field, v)} className="text-xs text-gray-600 min-w-[120px] bg-white/50" placeholder={placeholder} />
+                                            <EditableText value={val} editing={editing} onChange={(v) => update(field, v)} className="text-xs text-gray-600 min-w-[120px] bg-white/50" placeholder={placeholder} disabled={field === "careersEmail"} />
                                         ) : (
                                             val ? field === "website" ? <a href={val.startsWith("http") ? val : `https://${val}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-blue-600">{val}</a> : val : null
                                         )}
@@ -370,6 +370,7 @@ export default function CompanyProfilePage() {
                                             editing={editing} 
                                             onChange={(v) => setDraft(prev => prev ? { ...prev, contact: { ...prev.contact, [field]: v } } : prev)} 
                                             className="text-xs text-gray-700 w-full" 
+                                            disabled={field === "email"}
                                         />
                                     </div>
                                 ))}
