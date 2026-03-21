@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
     Target, TrendingUp, CheckCircle2,
     Users, ArrowRight, X,
@@ -256,9 +257,9 @@ export default function UniversityDashboard() {
                             {isRefreshing ? "Refreshing..." : `Updated ${lastUpdated}`}
                         </button>
                         {visibleAlerts.length > 0 && (
-                            <button className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-white hover:bg-blue-50 text-blue-700 text-sm font-semibold rounded-lg shadow-sm transition-colors">
+                            <Link href="/university/curriculum" className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-white hover:bg-blue-50 text-blue-700 text-sm font-semibold rounded-lg shadow-sm transition-colors">
                                 <ArrowRight size={16} /> Take Action
-                            </button>
+                            </Link>
                         )}
                     </div>
                 </div>
