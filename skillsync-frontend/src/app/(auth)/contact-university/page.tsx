@@ -150,16 +150,6 @@ export default function UniversityContactPage() {
                         <AuthInput label="Official Email" type="email" placeholder="dean@ucsc.cmb.ac.lk" icon={Mail} register={register("email")} error={errors.email} />
                         <AuthInput label="Password" type="password" placeholder="••••••••" icon={Lock} register={register("password")} error={errors.password} />
 
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-gray-700">How can we help?</label>
-                            <textarea
-                                {...register("message")}
-                                className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3.5 text-gray-900 placeholder-gray-400 outline-none focus:border-pink-500 focus:bg-white focus:ring-4 focus:ring-pink-500/10 h-32 resize-none"
-                                placeholder="Tell us about your current placement challenges..."
-                            />
-                            {errors.message && <p className="text-sm text-red-400">{errors.message.message}</p>}
-                        </div>
-
                         <GlassButton type="submit" variant="primary" className="w-full py-4 text-base font-bold bg-pink-600 hover:bg-pink-500 border-none" disabled={isLoading}>
                             {isLoading ? "Signing Up..." : "Sign Up"}
                         </GlassButton>
