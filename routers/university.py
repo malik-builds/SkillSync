@@ -605,6 +605,15 @@ async def update_settings(data: dict = Body(...), current_user: User = Depends(r
     except Exception as e:
         raise HTTPException(500, "Internal error")
 
+@router.post("/settings/deactivate")
+async def deactivate_account(current_user: User = Depends(require_university)):
+    try:
+        current_user.is_active = False
+        await current_user.save()
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, "Internal error")
+
 # ─── Settings aliases expected by frontend ────────────────────────────────────
 
 @router.get("/settings/account")

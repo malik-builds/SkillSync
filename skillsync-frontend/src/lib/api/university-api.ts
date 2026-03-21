@@ -262,3 +262,7 @@ export function updateDataGovernanceSettings(settings: Record<string, unknown>) 
 export function changeUniversityPassword(data: { currentPassword: string; newPassword: string }) {
   return api.post<{ success: boolean }>('/university/settings/change-password', data)
 }
+
+export function deactivateAccount() {
+  return api.post<{ success: boolean }>('/university/settings/deactivate', {});
+}

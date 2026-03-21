@@ -18,7 +18,8 @@ import {
     getUniversityStats,
     getCurriculumOverview,
     getPlacementsByProgramme,
-    getStudentStats
+    getStudentStats,
+    deactivateAccount
 } from "@/lib/api/university-api";
 
 type Tab = "account" | "team" | "notifications" | "data";
@@ -140,6 +141,19 @@ function AccountTab() {
         }
     };
 
+    const handleDeactivate = async () => {
+        const confirmed = window.confirm("Are you sure you want to deactivate your university analytics account? You will be immediately logged out and data will be retained for 90 days.");
+        if (!confirmed) return;
+
+        try {
+            await deactivateAccount();
+            window.location.href = "/login";
+        } catch (error) {
+            console.error("Deactivation failed", error);
+            alert("Failed to deactivate account. Please try again or contact support.");
+        }
+    };
+
     if (loading && !account) return <div className="p-8 text-center text-gray-500">Loading account details...</div>;
 
     const displayAccount = { ...account, ...formData };
@@ -230,7 +244,10 @@ function AccountTab() {
                         <p className="text-sm font-semibold text-red-700">Deactivate Account</p>
                         <p className="text-xs text-gray-500 mt-0.5">Temporarily suspend this university analytics account. Data will be retained for 90 days.</p>
                     </div>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-700 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors">
+                    <button 
+                        onClick={handleDeactivate}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-700 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors"
+                    >
                         <Trash2 size={12} /> Deactivate
                     </button>
                 </div>
