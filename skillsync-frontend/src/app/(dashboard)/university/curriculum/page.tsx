@@ -200,7 +200,7 @@ export default function CurriculumGapAnalysisPage() {
             {/* ── Summary Stats (Alignment Score First) ─────────────────── */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {/* 1. Alignment Score */}
-                <div className="bg-blue-600 p-4 rounded-xl border border-blue-500 shadow-sm flex flex-col justify-center text-white relative overflow-hidden">
+                <div className="bg-blue-600 p-4 rounded-xl border border-blue-500 shadow-sm flex flex-col justify-center text-white relative overflow-hidden selection:bg-white/30 selection:text-white">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
                     <p className="text-xs font-semibold text-blue-100 uppercase tracking-wider mb-1 relative z-10">Alignment Score</p>
                     <div className="flex items-end gap-2 relative z-10">
