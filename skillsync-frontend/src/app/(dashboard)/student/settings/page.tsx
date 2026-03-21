@@ -6,7 +6,7 @@ import { ToggleSwitch } from "@/components/student/settings/ToggleSwitch";
 import { ConnectionCard } from "@/components/student/settings/ConnectionCard";
 import { DangerZone } from "@/components/student/settings/DangerZone";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { ShieldCheck, Download } from "lucide-react";
+import { ShieldCheck, Download, X, Github } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -102,6 +102,75 @@ async function compressAvatarImage(file: File): Promise<File> {
     throw new Error("Failed to compress image.");
 }
 
+function ConnectGitHubModal({
+    onClose,
+    onConfirm,
+    value,
+    onValueChange,
+    isSubmitting,
+}: {
+    onClose: () => void;
+    onConfirm: () => void;
+    value: string;
+    onValueChange: (value: string) => void;
+    isSubmitting: boolean;
+}) {
+    const isReady = value.trim().length > 0;
+
+    return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                        <Github size={16} /> Connect GitHub
+                    </h3>
+                    <button
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                        className="p-1.5 rounded hover:bg-gray-100 text-gray-400 disabled:opacity-50"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+                <div className="p-5 space-y-4">
+                    <p className="text-sm text-gray-700">
+                        Add your GitHub profile URL to show your projects and commit activity to recruiters.
+                    </p>
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                            GitHub Profile URL
+                        </label>
+                        <input
+                            type="url"
+                            value={value}
+                            onChange={(e) => onValueChange(e.target.value)}
+                            placeholder="https://github.com/username"
+                            disabled={isSubmitting}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                </div>
+                <div className="flex gap-2 px-5 pb-5">
+                    <button
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-semibold transition-colors disabled:opacity-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        disabled={!isReady || isSubmitting}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                    >
+                        <Github size={14} /> {isSubmitting ? "Connecting..." : "Connect GitHub"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function SettingsPage() {
     const { user, logout } = useAuth();
     const router = useRouter();
@@ -137,6 +206,8 @@ export default function SettingsPage() {
     const [savingNotifications, setSavingNotifications] = useState(false);
     const [savingPrivacy, setSavingPrivacy] = useState(false);
     const [connectingGithub, setConnectingGithub] = useState(false);
+    const [showConnectGithubModal, setShowConnectGithubModal] = useState(false);
+    const [pendingGithubUrl, setPendingGithubUrl] = useState("");
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [removingAvatar, setRemovingAvatar] = useState(false);
     const [deletingAccount, setDeletingAccount] = useState(false);
@@ -229,21 +300,40 @@ export default function SettingsPage() {
     };
 
     const onGitHubAction = async () => {
+        if (!profile.githubUrl) {
+            setPendingGithubUrl("");
+            setShowConnectGithubModal(true);
+            return;
+        }
+
         try {
             setConnectingGithub(true);
             setMessage("");
 
-            if (profile.githubUrl) {
-                await updateStudentProfile({ githubUrl: "" });
-                setProfile((prev) => ({ ...prev, githubUrl: "" }));
-                setMessage("GitHub disconnected.");
-                return;
-            }
+            await updateStudentProfile({ githubUrl: "" });
+            setProfile((prev) => ({ ...prev, githubUrl: "" }));
+            setMessage("GitHub disconnected.");
+        } catch {
+            setError("Failed to update GitHub connection.");
+        } finally {
+            setConnectingGithub(false);
+        }
+    };
 
-            const value = window.prompt("Enter your GitHub profile URL");
-            if (!value) return;
-            await updateStudentProfile({ githubUrl: value.trim() });
-            setProfile((prev) => ({ ...prev, githubUrl: value.trim() }));
+    const onConfirmConnectGitHub = async () => {
+        const trimmedUrl = pendingGithubUrl.trim();
+        if (!trimmedUrl) {
+            return;
+        }
+
+        try {
+            setConnectingGithub(true);
+            setMessage("");
+            setError("");
+            await updateStudentProfile({ githubUrl: trimmedUrl });
+            setProfile((prev) => ({ ...prev, githubUrl: trimmedUrl }));
+            setShowConnectGithubModal(false);
+            setPendingGithubUrl("");
             setMessage("GitHub connected.");
         } catch {
             setError("Failed to update GitHub connection.");
@@ -341,6 +431,19 @@ export default function SettingsPage() {
 
     return (
         <div className="min-h-[calc(100vh-80px)] bg-gray-50 pb-20">
+            {showConnectGithubModal && (
+                <ConnectGitHubModal
+                    onClose={() => {
+                        if (connectingGithub) return;
+                        setShowConnectGithubModal(false);
+                        setPendingGithubUrl("");
+                    }}
+                    onConfirm={() => void onConfirmConnectGitHub()}
+                    value={pendingGithubUrl}
+                    onValueChange={setPendingGithubUrl}
+                    isSubmitting={connectingGithub}
+                />
+            )}
             <div className="max-w-6xl mx-auto px-4 py-8">
                 <h1 className="text-2xl font-bold text-gray-900 mb-8">Settings</h1>
 
