@@ -6,7 +6,8 @@ import {
 } from "lucide-react";
 import { ProgrammeData, CompanyData, RoleData } from "@/types/university";
 import { useApi } from "@/lib/hooks/useApi";
-import { getPlacementsByRole, getPlacementsByProgramme, getTopCompanies } from "@/lib/api/university-api";
+import { getPlacementsByRole, getPlacementsByProgramme, getTopCompanies, getPlacementsByDuration } from "@/lib/api/university-api";
+import { DurationBreakdown } from "@/types/university";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -23,10 +24,12 @@ export default function PlacementsTrackingPage() {
     const { data: programmesData } = useApi<ProgrammeData[]>(() => getPlacementsByProgramme());
     const { data: companiesData } = useApi<CompanyData[]>(() => getTopCompanies());
     const { data: rolesData } = useApi<RoleData[]>(() => getPlacementsByRole());
+    const { data: durationsData } = useApi<DurationBreakdown[]>(() => getPlacementsByDuration());
 
     const PROGRAMMES = programmesData ?? [];
     const COMPANIES = companiesData ?? [];
     const ROLES = rolesData ?? [];
+    const DURATIONS = durationsData ?? [];
 
     const handleShare = async () => {
         const shareData = {
@@ -318,8 +321,8 @@ export default function PlacementsTrackingPage() {
                                             {company.roles.length > 0 && (
                                                 <div className="text-[11px] text-gray-500 mt-1 flex gap-2">
                                                     <span className="font-semibold text-gray-400">Roles:</span>
-                                                    {company.roles.map((r, i) => (
-                                                        <span key={i}>{r.role}({r.count}){i < company.roles.length - 1 ? ', ' : ''}</span>
+                                                    {(company.roles || []).map((r, i) => (
+                                                        <span key={`${r.role}-${i}`}>{r.role}({r.count}){i < company.roles.length - 1 ? ', ' : ''}</span>
                                                     ))}
                                                 </div>
                                             )}
@@ -332,9 +335,9 @@ export default function PlacementsTrackingPage() {
                     </div>
 
                     <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-500">Total: 47 companies hiring</span>
+                        <span className="text-xs font-medium text-gray-500">Total: {COMPANIES.length} companies hiring</span>
                         <button className="text-xs font-semibold text-gray-600 hover:text-gray-800 flex items-center gap-1">
-                            View All 47 Companies <ChevronRight size={14} />
+                            View All {COMPANIES.length} Companies <ChevronRight size={14} />
                         </button>
                     </div>
                 </div>
@@ -348,14 +351,14 @@ export default function PlacementsTrackingPage() {
                         </h2>
 
                         <div className="space-y-5">
-                            {ROLES.slice(0, 3).map((role, index) => (
-                                <div key={`${role.name}-${index}`}>
+                            {DURATIONS.slice(0, 4).map((duration, index) => (
+                                <div key={`${duration.label}-${index}`}>
                                     <div className="flex justify-between text-sm mb-1.5">
-                                        <span className="font-medium text-gray-700">{role.name}</span>
-                                        <span className="font-bold text-gray-900">{role.students} ({role.percent}%)</span>
+                                        <span className="font-medium text-gray-700">{duration.label}</span>
+                                        <span className="font-bold text-gray-900">{duration.count} ({duration.percentage}%)</span>
                                     </div>
                                     <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-slate-400" style={{ width: `${role.percent}%` }}></div>
+                                        <div className="h-full bg-slate-400" style={{ width: `${duration.percentage}%` }}></div>
                                     </div>
                                 </div>
                             ))}
@@ -366,10 +369,10 @@ export default function PlacementsTrackingPage() {
                                 Key Insight
                             </h4>
                             <p className="text-[11px] text-gray-600">
-                                {ROLES.length > 0 ? (
-                                    <>{ROLES[0].name} roles are currently the most popular among your students.</>
+                                {DURATIONS.length > 0 ? (
+                                    <>{DURATIONS[0].label} is currently the most common time-to-outcome window for internships.</>
                                 ) : (
-                                    "No role participation data available."
+                                    "No duration data available yet."
                                 )}
                             </p>
                         </div>
@@ -416,7 +419,7 @@ export default function PlacementsTrackingPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {ROLES.map((role, i) => (
-                                <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                                <tr key={`${role.name}-${i}`} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="py-4 font-bold text-gray-900 text-sm">{role.name}</td>
                                     <td className="py-4 font-semibold text-gray-700 text-right">{role.students}</td>
                                     <td className="py-4 text-sm font-bold text-gray-900 text-right">{role.percent}%</td>

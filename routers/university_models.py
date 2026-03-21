@@ -5,14 +5,14 @@ from typing import List, Optional
 
 class UniversityProfile(Document):
     uni_email: str
-    institution_name: str = "Informatics Institute of Technology"
-    website: str = "https://www.iit.ac.lk"
-    address: str = "57 Ramakrishna Road, Colombo 06"
+    institution_name: str = ""
+    website: str = ""
+    address: str = ""
     personal_name: str = ""
-    personal_role: str = "Administrator"
+    personal_role: str = ""
     personal_phone: str = ""
-    faculty: str = "Faculty of Science"
-    account_type: str = "Institutional Admin"
+    faculty: str = ""
+    account_type: str = ""
     partner_companies: List[dict] = []
     interventions: List[dict] = []
     dismissed_alerts: List[str] = []

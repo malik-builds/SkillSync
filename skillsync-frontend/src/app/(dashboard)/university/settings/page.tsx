@@ -11,6 +11,7 @@ import { UniTeamMember, UniPendingInvite, UniversityAccountSettings, UniversityD
 import { useApi } from "@/lib/hooks/useApi";
 import { 
     getUniversityTeam, 
+    inviteUniversityTeamMember,
     getUniversityAccount, 
     updateUniversityAccount, 
     getUniversityNotificationSettings, 
@@ -68,15 +69,27 @@ function Card({ title, desc, children }: { title: string; desc?: string; childre
 
 // ─── Invite Modal ──────────────────────────────────────────────────────────────
 
-function InviteModal({ onClose }: { onClose: () => void }) {
+function InviteModal({ onClose, onInvite }: { onClose: () => void; onInvite: (email: string, role: string, department: string) => Promise<void> }) {
     const [email, setEmail] = useState("");
     const [role, setRole] = useState("View Only");
+    const [department, setDepartment] = useState("Administration");
     const [sent, setSent] = useState(false);
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState("");
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (!email.trim()) return;
-        setSent(true);
-        setTimeout(() => { setSent(false); onClose(); }, 1500);
+        try {
+            setSending(true);
+            setError("");
+            await onInvite(email.trim(), role, department.trim() || "Administration");
+            setSent(true);
+            setTimeout(() => { setSent(false); onClose(); }, 900);
+        } catch (err: any) {
+            setError(err?.error || err?.message || "Failed to send invitation.");
+        } finally {
+            setSending(false);
+        }
     };
 
     return (
@@ -102,13 +115,23 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                             {["Admin", "Department Head", "View Only"].map((r) => <option key={r}>{r}</option>)}
                         </select>
                     </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Department</label>
+                        <input
+                            value={department}
+                            onChange={(e) => setDepartment(e.target.value)}
+                            placeholder="Administration"
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
                     <p className="text-[11px] text-gray-400">They&apos;ll receive an email invitation to access your university analytics workspace.</p>
+                    {error && <p className="text-xs text-red-600">{error}</p>}
                 </div>
                 <div className="flex gap-2 px-5 pb-5">
                     <button onClick={onClose} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-stone-50 transition-colors">Cancel</button>
-                    <button onClick={handleSend} disabled={!email.trim()}
+                    <button onClick={() => void handleSend()} disabled={!email.trim() || sending}
                         className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${sent ? "bg-green-600 text-white" : "bg-blue-700 hover:bg-blue-800 text-white"}`}>
-                        {sent ? <><Check size={12} /> Sent!</> : <><Send size={12} /> Send Invite</>}
+                        {sent ? <><Check size={12} /> Sent!</> : <><Send size={12} /> {sending ? "Sending..." : "Send Invite"}</>}
                     </button>
                 </div>
             </div>
@@ -172,7 +195,7 @@ function AccountTab() {
                             { label: "University", value: displayAccount.institutionName || "Not Set" },
                             { label: "Account Type", value: (displayAccount as any).accountType || "Institutional Admin" },
                             { label: "Faculty", value: (displayAccount as any).faculty || "Not Set" },
-                            { label: "Accreditation ID", value: "UGC-COL-2024-0841" }, 
+                            { label: "Institution Domain", value: (displayAccount.personalEmail || "").split("@")[1] || "Not Set" },
                         ].map((f) => (
                             <div key={f.label}>
                                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{f.label}</p>
@@ -266,7 +289,7 @@ function AccountTab() {
 // ─── Tab: Team ─────────────────────────────────────────────────────────────────
 
 function TeamTab() {
-    const { data: teamData } = useApi<{ members: TeamMember[]; invites: PendingInvite[] }>(getUniversityTeam);
+    const { data: teamData, refetch } = useApi<{ members: TeamMember[]; invites: PendingInvite[] }>(getUniversityTeam);
     const members = teamData?.members ?? [];
     const invites = teamData?.invites ?? [];
     const [showInvite, setShowInvite] = useState(false);
@@ -353,7 +376,15 @@ function TeamTab() {
                 </Card>
             </div>
 
-            {showInvite && <InviteModal onClose={() => setShowInvite(false)} />}
+            {showInvite && (
+                <InviteModal
+                    onClose={() => setShowInvite(false)}
+                    onInvite={async (email, role, department) => {
+                        await inviteUniversityTeamMember(email, role, department);
+                        refetch();
+                    }}
+                />
+            )}
         </>
     );
 }

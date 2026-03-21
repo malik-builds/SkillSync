@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { DashboardAlert, ProgrammePlacement, TopEmployer, Intervention, InterventionStatus, RadarDataPoint, SkillBarDataPoint, PlacementDonutSegment } from "@/types/university";
 import { useApi } from "@/lib/hooks/useApi";
-import { getUniversityDashboard, getAlerts, UniversityDashboardData } from "@/lib/api/university-api";
+import { getUniversityDashboard, getAlerts, createIntervention, dismissAlert as dismissAlertApi, UniversityDashboardData } from "@/lib/api/university-api";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -103,16 +103,30 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: { payl
     );
 }
 
-function AddInterventionModal({ onClose }: { onClose: () => void }) {
+function AddInterventionModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> }) {
     const [title, setTitle] = useState("");
     const [programme, setProgramme] = useState("Computer Science");
     const [impact, setImpact] = useState("");
     const [saved, setSaved] = useState(false);
+    const [saving, setSaving] = useState(false);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!title.trim()) return;
-        setSaved(true);
-        setTimeout(() => { setSaved(false); onClose(); }, 1500);
+        try {
+            setSaving(true);
+            await createIntervention({
+                title: title.trim(),
+                programme,
+                impact: impact.trim() || "Intervention logged",
+                status: "pending",
+                date: new Date().toISOString().slice(0, 10),
+            });
+            await onSaved();
+            setSaved(true);
+            setTimeout(() => { setSaved(false); onClose(); }, 900);
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -159,10 +173,10 @@ function AddInterventionModal({ onClose }: { onClose: () => void }) {
                     <button onClick={onClose} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-stone-50 transition-colors">Cancel</button>
                     <button
                         onClick={handleSave}
-                        disabled={!title.trim()}
+                        disabled={!title.trim() || saving}
                         className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${saved ? "bg-green-600 text-white" : "bg-blue-700 hover:bg-blue-800 text-white"}`}
                     >
-                        {saved ? <><CheckCircle2 size={13} /> Logged!</> : <><Plus size={13} /> Log Intervention</>}
+                        {saved ? <><CheckCircle2 size={13} /> Logged!</> : <><Plus size={13} /> {saving ? "Logging..." : "Log Intervention"}</>}
                     </button>
                 </div>
             </div>
@@ -177,8 +191,8 @@ export default function UniversityDashboard() {
     const [showAddIntervention, setShowAddIntervention] = useState(false);
     const [lastUpdated] = useState("2 hours ago");
 
-    const { data: dashboard } = useApi<UniversityDashboardData>(() => getUniversityDashboard());
-    const { data: alertsData } = useApi<DashboardAlert[]>(() => getAlerts());
+    const { data: dashboard, refetch: refetchDashboard } = useApi<UniversityDashboardData>(() => getUniversityDashboard());
+    const { data: alertsData, refetch: refetchAlerts } = useApi<DashboardAlert[]>(() => getAlerts());
 
     const ALERTS = alertsData ?? [];
     const RADAR_DATA: RadarDataPoint[] = dashboard?.radarData ?? [];
@@ -189,7 +203,15 @@ export default function UniversityDashboard() {
     const INTERVENTIONS: Intervention[] = dashboard?.interventions ?? [];
 
     const visibleAlerts = ALERTS.filter(a => !dismissedAlerts.has(a.id));
-    const dismissAlert = (id: string) => setDismissedAlerts(prev => new Set([...prev, id]));
+    const dismissAlert = async (id: string) => {
+        setDismissedAlerts(prev => new Set([...prev, id]));
+        try {
+            await dismissAlertApi(id);
+            refetchAlerts();
+        } catch {
+            // Keep UI responsive even if backend dismissal fails.
+        }
+    };
 
     // Count skills where market demand is significantly higher than student coverage
     const criticalGaps = SKILL_BAR_DATA.filter(s => (s.demand - s.coverage) >= 50).length;
@@ -528,7 +550,14 @@ export default function UniversityDashboard() {
             </div>
 
             {/* ── Add Intervention Modal ─────────────────────────────────── */}
-            {showAddIntervention && <AddInterventionModal onClose={() => setShowAddIntervention(false)} />}
+            {showAddIntervention && (
+                <AddInterventionModal
+                    onClose={() => setShowAddIntervention(false)}
+                    onSaved={async () => {
+                        refetchDashboard();
+                    }}
+                />
+            )}
         </div>
     );
 }

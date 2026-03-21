@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import List, Optional
 from datetime import datetime
+from collections import defaultdict
 from auth.models import User
 from auth.dependencies import get_current_user
 from routers.university_models import UniversityProfile
 from routers.application_models import Application
+from jobs.models import Job
 from models import Student
 from services import SKILL_ONTOLOGY
 
@@ -113,6 +115,60 @@ def make_radar_from_analytics(analytics: dict) -> list:
         })
     return result
 
+def _safe_int(value: object) -> int:
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except Exception:
+        return 0
+
+def _partner_logo_color(name: str) -> str:
+    palette = [
+        "from-blue-500 to-indigo-600",
+        "from-emerald-500 to-teal-600",
+        "from-slate-500 to-gray-700",
+        "from-rose-500 to-red-600",
+        "from-cyan-500 to-blue-600",
+        "from-amber-500 to-orange-600",
+    ]
+    if not name:
+        return palette[0]
+    return palette[sum(ord(ch) for ch in name) % len(palette)]
+
+def normalize_partner_company(partner: dict) -> dict:
+    name = str(partner.get("name") or "").strip()
+    active_jobs = _safe_int(partner.get("activeJobs", 0))
+    students_hired = _safe_int(partner.get("hiredStudents", partner.get("studentsHired", 0)))
+
+    raw_status = str(partner.get("status") or "").strip()
+    if raw_status in {"Active", "Partner", "New", "Inactive"}:
+        status = raw_status
+    elif active_jobs > 0:
+        status = "Active"
+    elif students_hired > 0:
+        status = "Partner"
+    else:
+        status = "New"
+
+    rating = _safe_int(partner.get("rating", 0))
+    if rating <= 0 and (active_jobs > 0 or students_hired > 0):
+        rating = min(5, 1 + (1 if active_jobs > 0 else 0) + min(3, students_hired // 5))
+
+    return {
+        "id": str(partner.get("id") or name.lower().replace(" ", "-") or "partner"),
+        "name": name,
+        "industry": str(partner.get("industry") or "Unknown"),
+        "size": str(partner.get("size") or partner.get("companySize") or "Unknown"),
+        "status": status,
+        "studentsHired": students_hired,
+        "activeJobs": active_jobs,
+        "rating": max(0, min(5, rating)),
+        "email": str(partner.get("email") or partner.get("careersEmail") or ""),
+        "topRoles": list(partner.get("topRoles") or []),
+        "since": _safe_int(partner.get("since", datetime.now().year)),
+        "logoColor": str(partner.get("logoColor") or _partner_logo_color(name)),
+        "website": str(partner.get("website") or ""),
+    }
+
 @router.get("/dashboard")
 async def get_dashboard(current_user: User = Depends(require_university)):
     try:
@@ -176,14 +232,15 @@ async def get_dashboard(current_user: User = Depends(require_university)):
                 coverage = min(100, int((cnt / total) * 100))
                 skill_bar.append({"skill": sk.title(), "demand": 85, "coverage": coverage, "gap": max(0, 85 - coverage)})
 
+        normalized_partners = [normalize_partner_company(c) for c in (profile.partner_companies or [])[:5]]
+        total_partner_hires = sum(c["studentsHired"] for c in normalized_partners) or 1
+
         placed_pct = int(placement_rate)
         return {
             "stats": stats,
             "radarData": radar_data,
             "alerts": alerts,
-            "skillBarData": skill_bar or [
-                {"skill": "Docker", "demand": 95, "coverage": 0, "gap": 95},
-            ],
+            "skillBarData": skill_bar,
             "placementDonut": [
                 {"name": "Placement Ready", "value": placed_pct, "color": "#10B981"},
                 {"name": "Needs Work", "value": 100 - placed_pct, "color": "#E5E7EB"},
@@ -192,10 +249,14 @@ async def get_dashboard(current_user: User = Depends(require_university)):
                 {"programme": "All Programmes", "rate": placed_pct, "total": total_students, "placed": placed}
             ],
             "topEmployers": [{
-                "name": c["name"], "hires": c.get("hiredStudents", 0),
-                "percentage": 0, "topRole": "SE", "avgSalary": "N/A",
-                "color": "#4F46E5", "initials": c["name"][0]
-            } for c in (profile.partner_companies or [])[:5]],
+                "name": c["name"],
+                "hires": c["studentsHired"],
+                "percentage": round((c["studentsHired"] / total_partner_hires) * 100),
+                "topRole": (c.get("topRoles") or ["-"])[0],
+                "avgSalary": "Not available",
+                "color": "#4F46E5",
+                "initials": "".join(part[0] for part in c["name"].split()[:2]).upper() or c["name"][:1].upper(),
+            } for c in normalized_partners],
             "interventions": [],
         }
     except Exception as e:
@@ -279,12 +340,19 @@ async def get_placements(year: Optional[str] = None, current_user: User = Depend
         placed = analytics["placedCount"] if analytics else 0
         total = analytics["totalStudents"] if analytics else 0
         rate = analytics["placementRate"] if analytics else 0
+
+        students = await Student.find(Student.institution == profile.institution_name).to_list()
+        student_emails = {s.email.lower() for s in students if s.email}
+        apps = await Application.find_all().to_list()
+        institution_apps = [a for a in apps if (a.student_email or "").lower() in student_emails]
+        actively_seeking = len({(a.student_email or "").lower() for a in institution_apps if a.status in ("applied", "reviewing", "shortlisted", "interview")})
+
         return {
             "stats": {
-                "totalPlaced": placed,
-                "placementRate": rate,
-                "avgStartingSalary": "N/A",
-                "topIndustry": "Technology",
+                "totalEligible": total,
+                "activelySeeking": actively_seeking,
+                "secured": placed,
+                "overallRate": rate,
             },
             "programmes": [],
             "companies": [],
@@ -299,15 +367,18 @@ async def get_placement_funnel(current_user: User = Depends(require_university))
     try:
         profile = await get_university_profile(current_user)
         analytics = await compute_university_analytics(profile.institution_name)
-        total = analytics["totalStudents"] if analytics else 0
-        active = len([s for s in await Student.find(Student.institution == profile.institution_name).to_list() if s.extracted_data]) if analytics else 0
+        students = await Student.find(Student.institution == profile.institution_name).to_list()
+        student_emails = {(s.email or "").lower() for s in students}
+        total = analytics["totalStudents"] if analytics else len(students)
+        active = len([s for s in students if s.extracted_data])
         apps = await Application.find_all().to_list()
-        interview_count = sum(1 for a in apps if a.status == "interview")
-        offer_count = sum(1 for a in apps if a.status in ("offer", "hired"))
+        institution_apps = [a for a in apps if (a.student_email or "").lower() in student_emails]
+        interview_count = sum(1 for a in institution_apps if a.status == "interview")
+        offer_count = sum(1 for a in institution_apps if a.status in ("offer", "hired"))
         return [
             {"stage": "Total Students", "count": total},
             {"stage": "Active Profiles", "count": active},
-            {"stage": "Applications", "count": len(apps)},
+            {"stage": "Applications", "count": len(institution_apps)},
             {"stage": "Interviews", "count": interview_count},
             {"stage": "Offers", "count": offer_count},
         ]
@@ -337,8 +408,50 @@ async def get_placements_by_programme(year: Optional[str] = None, current_user: 
 async def get_top_companies(current_user: User = Depends(require_university)):
     try:
         profile = await get_university_profile(current_user)
-        return [{"name": c["name"], "hires": c.get("hiredStudents", 0), "logo": c["name"][0]}
-                for c in (profile.partner_companies or [])]
+        students = await Student.find(Student.institution == profile.institution_name).to_list()
+        student_by_email = {(s.email or "").lower(): s for s in students if s.email}
+        apps = await Application.find_all().to_list()
+        institution_apps = [a for a in apps if (a.student_email or "").lower() in student_by_email]
+
+        jobs = await Job.find_all().to_list()
+        job_company = {str(j.id): j.company for j in jobs}
+
+        by_company: dict = defaultdict(lambda: {"interns": 0, "roles": defaultdict(int)})
+        for app in institution_apps:
+            company = job_company.get(str(app.job_id)) or "Unknown Company"
+            if app.status in ("offer", "hired"):
+                by_company[company]["interns"] += 1
+
+            student = student_by_email.get((app.student_email or "").lower())
+            role = (student.target_role if student and student.target_role else "Unknown")
+            by_company[company]["roles"][role] += 1
+
+        if not by_company:
+            normalized = [normalize_partner_company(c) for c in (profile.partner_companies or [])]
+            normalized.sort(key=lambda c: c["studentsHired"], reverse=True)
+            return [
+                {
+                    "id": c["id"],
+                    "rank": idx + 1,
+                    "name": c["name"],
+                    "interns": c["studentsHired"],
+                    "roles": [{"role": r, "count": 0} for r in (c.get("topRoles") or [])[:3]],
+                }
+                for idx, c in enumerate(normalized)
+            ]
+
+        ranked = sorted(by_company.items(), key=lambda x: x[1]["interns"], reverse=True)
+        results = []
+        for idx, (company, data) in enumerate(ranked[:10]):
+            top_roles = sorted(data["roles"].items(), key=lambda x: x[1], reverse=True)[:3]
+            results.append({
+                "id": company.lower().replace(" ", "-") or f"company-{idx+1}",
+                "rank": idx + 1,
+                "name": company,
+                "interns": data["interns"],
+                "roles": [{"role": role, "count": count} for role, count in top_roles],
+            })
+        return results
     except Exception:
         raise HTTPException(500, "Internal error")
 
@@ -351,36 +464,93 @@ async def get_placements_by_role(current_user: User = Depends(require_university
         for s in all_students:
             role = s.target_role or "Unknown"
             role_counts[role] = role_counts.get(role, 0) + 1
-        roles = [{"title": r, "count": c, "avgSalary": "N/A", "trend": "+0%"}
-                 for r, c in sorted(role_counts.items(), key=lambda x: x[1], reverse=True)[:10]]
-        return roles or [{"title": "Software Engineer", "count": 0, "avgSalary": "N/A", "trend": "+0%"}]
+        total = sum(role_counts.values()) or 1
+        roles = [
+            {
+                "name": r,
+                "students": c,
+                "percent": round((c / total) * 100),
+                "duration": 0,
+            }
+            for r, c in sorted(role_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        ]
+        return roles
     except Exception:
         raise HTTPException(500, "Internal error")
 
 @router.get("/placements/by-duration")
 async def get_placements_by_duration(current_user: User = Depends(require_university)):
     try:
+        profile = await get_university_profile(current_user)
+        students = await Student.find(Student.institution == profile.institution_name).to_list()
+        student_emails = {(s.email or "").lower() for s in students if s.email}
+        apps = await Application.find_all().to_list()
+        institution_apps = [a for a in apps if (a.student_email or "").lower() in student_emails]
+
+        buckets = {
+            "0-1 Months": 0,
+            "1-3 Months": 0,
+            "3-6 Months": 0,
+            "6+ Months": 0,
+        }
+        for app in institution_apps:
+            start = app.applied_at
+            end = app.status_updated_at or app.applied_at
+            if not start or not end:
+                continue
+            days = max(0, (end - start).days)
+            if days <= 30:
+                buckets["0-1 Months"] += 1
+            elif days <= 90:
+                buckets["1-3 Months"] += 1
+            elif days <= 180:
+                buckets["3-6 Months"] += 1
+            else:
+                buckets["6+ Months"] += 1
+
+        total = sum(buckets.values()) or 1
         return [
-            {"duration": "0-1 Months", "count": 0},
-            {"duration": "1-3 Months", "count": 0},
-            {"duration": "3-6 Months", "count": 0},
-            {"duration": "6+ Months", "count": 0},
+            {"label": label, "count": count, "percentage": round((count / total) * 100)}
+            for label, count in buckets.items()
         ]
     except Exception:
         raise HTTPException(500, "Internal error")
 
 @router.get("/partners")
-async def get_partners(current_user: User = Depends(require_university)):
+async def get_partners(
+    status: Optional[str] = Query(None),
+    industry: Optional[str] = Query(None),
+    size: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    current_user: User = Depends(require_university)
+):
     try:
         profile = await get_university_profile(current_user)
-        companies = profile.partner_companies or []
+        companies = [normalize_partner_company(c) for c in (profile.partner_companies or [])]
+
+        if status:
+            companies = [c for c in companies if c["status"].lower() == status.lower()]
+        if industry:
+            companies = [c for c in companies if c["industry"].lower() == industry.lower()]
+        if size:
+            companies = [c for c in companies if c["size"].lower() == size.lower()]
+        if search:
+            q = search.lower().strip()
+            companies = [
+                c for c in companies
+                if q in c["name"].lower() or q in c["industry"].lower() or q in (c.get("website") or "").lower()
+            ]
+
+        active_partners = sum(1 for c in companies if c["status"] == "Active")
+        total_hired = sum(c.get("studentsHired", 0) for c in companies)
+        total_jobs = sum(c.get("activeJobs", 0) for c in companies)
         return {
             "companies": companies,
             "stats": {
                 "totalPartners": len(companies),
-                "activeJobs": sum(c.get("activeJobs", 0) for c in companies),
-                "hiredStudents": sum(c.get("hiredStudents", 0) for c in companies),
-                "newThisMonth": 0,
+                "activePartners": active_partners,
+                "totalHired": total_hired,
+                "totalJobs": total_jobs,
             }
         }
     except Exception as e:
@@ -390,12 +560,12 @@ async def get_partners(current_user: User = Depends(require_university)):
 async def get_partner_stats(current_user: User = Depends(require_university)):
     try:
         profile = await get_university_profile(current_user)
-        companies = profile.partner_companies or []
+        companies = [normalize_partner_company(c) for c in (profile.partner_companies or [])]
         return {
             "totalPartners": len(companies),
-            "activeJobs": sum(c.get("activeJobs", 0) for c in companies),
-            "hiredStudents": sum(c.get("hiredStudents", 0) for c in companies),
-            "newThisMonth": 0,
+            "activePartners": sum(1 for c in companies if c["status"] == "Active"),
+            "totalHired": sum(c.get("studentsHired", 0) for c in companies),
+            "totalJobs": sum(c.get("activeJobs", 0) for c in companies),
         }
     except Exception:
         raise HTTPException(500, "Internal error")
@@ -405,18 +575,25 @@ async def add_partner(data: dict = Body(...), current_user: User = Depends(requi
     try:
         import uuid
         profile = await get_university_profile(current_user)
+        company_name = str(data.get("name", "")).strip()
         partner = {
             "id": str(uuid.uuid4()),
-            "name": data.get("name", ""),
-            "industry": data.get("industry", ""),
+            "name": company_name,
+            "industry": data.get("industry", "Unknown"),
             "website": data.get("website", ""),
+            "size": data.get("size", "Unknown"),
+            "status": data.get("status", "New"),
             "activeJobs": 0,
             "hiredStudents": 0,
-            "logo": data.get("name", "?")[0].upper(),
+            "email": data.get("email", ""),
+            "topRoles": data.get("topRoles", []),
+            "since": datetime.now().year,
+            "logo": company_name[0].upper() if company_name else "?",
+            "logoColor": _partner_logo_color(company_name),
         }
         profile.partner_companies.append(partner)
         await profile.save()
-        return {"success": True, "partner": partner}
+        return {"success": True, "partner": normalize_partner_company(partner)}
     except Exception as e:
         raise HTTPException(500, "Internal error")
 
@@ -657,33 +834,57 @@ async def update_notification_settings(data: dict = Body(...), current_user: Use
 
 @router.get("/settings/data")
 async def get_data_governance(current_user: User = Depends(require_university)):
-    """Stub — data governance settings not yet implemented."""
-    return {"dataRetention": "2years", "anonymisation": True, "exportEnabled": True}
+    try:
+        profile = await get_university_profile(current_user)
+        students = await Student.find(Student.institution == profile.institution_name).to_list()
+        with_profiles = len([s for s in students if s.extracted_data])
+        return {
+            "studentsTracked": len(students),
+            "profilesWithData": with_profiles,
+            "institution": profile.institution_name,
+            "lastUpdated": datetime.now().isoformat(),
+        }
+    except Exception:
+        raise HTTPException(500, "Internal error")
 
 @router.put("/settings/data")
 async def update_data_governance(data: dict = Body(...), current_user: User = Depends(require_university)):
-    """Stub — data governance settings not yet implemented."""
-    return {"success": True}
+    # Endpoint retained for frontend compatibility until data-governance persistence is introduced.
+    return {"success": True, "settings": data}
 
 @router.get("/settings/team")
 async def get_team(current_user: User = Depends(require_university)):
-    """Stub — team management not yet implemented."""
-    return {"members": [], "invites": []}
+    profile = await get_university_profile(current_user)
+    name = (profile.personal_name or current_user.name or "").strip() or "University Admin"
+    initials = "".join(part[0] for part in name.split()[:2]).upper() or "UA"
+    return {
+        "members": [
+            {
+                "id": str(current_user.id),
+                "name": name,
+                "email": current_user.email,
+                "role": "Owner",
+                "isYou": True,
+                "avatar": initials,
+                "avatarColor": "#2563EB",
+                "department": profile.faculty or "Administration",
+                "joinedDate": "-",
+            }
+        ],
+        "invites": []
+    }
 
 @router.post("/settings/team/invite")
 async def invite_team_member(data: dict = Body(...), current_user: User = Depends(require_university)):
-    """Stub — team invite not yet implemented."""
-    return {"success": True}
+    raise HTTPException(501, "Team invitations are not enabled yet.")
 
 @router.delete("/settings/team/{member_id}")
 async def remove_team_member(member_id: str, current_user: User = Depends(require_university)):
-    """Stub — team member removal not yet implemented."""
-    return {"success": True}
+    raise HTTPException(501, "Team member removal is not enabled yet.")
 
 @router.delete("/settings/team/invites/{invite_id}")
 async def revoke_team_invite(invite_id: str, current_user: User = Depends(require_university)):
-    """Stub — invite revocation not yet implemented."""
-    return {"success": True}
+    raise HTTPException(501, "Invite revocation is not enabled yet.")
 
 @router.post("/settings/change-password")
 async def change_password(data: dict = Body(...), current_user: User = Depends(require_university)):
@@ -918,5 +1119,4 @@ async def get_missing_skills(current_user: User = Depends(require_university)):
 
 @router.post("/partners/{partner_id}/contact")
 async def contact_partner(partner_id: str, data: dict = Body(...), current_user: User = Depends(require_university)):
-    """Stub — partner contact form not yet implemented."""
-    return {"success": True, "message": "Contact request recorded."}
+    raise HTTPException(501, "Partner contact workflow is not enabled yet.")
