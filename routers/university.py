@@ -274,7 +274,8 @@ async def get_students_analytics(current_user: User = Depends(require_university
 @router.get("/placements")
 async def get_placements(year: Optional[str] = None, current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         placed = analytics["placedCount"] if analytics else 0
         total = analytics["totalStudents"] if analytics else 0
         rate = analytics["placementRate"] if analytics else 0
@@ -296,9 +297,10 @@ async def get_placements(year: Optional[str] = None, current_user: User = Depend
 @router.get("/placements/funnel")
 async def get_placement_funnel(current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         total = analytics["totalStudents"] if analytics else 0
-        active = len([s for s in await Student.find_all().to_list() if s.extracted_data]) if analytics else 0
+        active = len([s for s in await Student.find(Student.institution == profile.institution_name).to_list() if s.extracted_data]) if analytics else 0
         apps = await Application.find_all().to_list()
         interview_count = sum(1 for a in apps if a.status == "interview")
         offer_count = sum(1 for a in apps if a.status in ("offer", "hired"))
@@ -315,7 +317,8 @@ async def get_placement_funnel(current_user: User = Depends(require_university))
 @router.get("/placements/by-programme")
 async def get_placements_by_programme(year: Optional[str] = None, current_user: User = Depends(require_university)):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         placed = analytics["placedCount"] if analytics else 0
         total = analytics["totalStudents"] if analytics else 0
         rate = analytics["placementRate"] if analytics else 0
@@ -418,7 +421,8 @@ async def get_curriculum_skills(
     current_user: User = Depends(require_university)
 ):
     try:
-        analytics = await compute_university_analytics()
+        profile = await get_university_profile(current_user)
+        analytics = await compute_university_analytics(profile.institution_name)
         if not analytics:
             return {"stats": {"totalSkillsTracked": 0, "skillsAtRisk": 0, "averageCoverage": 0, "industryAlignment": 0}, "skills": []}
 
@@ -466,7 +470,7 @@ async def get_curriculum_skills(
 
         all_skill_data.sort(key=lambda x: x["gap"], reverse=True)
         at_risk = sum(1 for s in all_skill_data if s["gap"] >= 30)
-        avg_cov = int(sum(s["studentProficiency"] for s in all_skill_data) / len(all_skill_data)) if all_skill_data else 0
+        avg_cov = int(sum(s["studentCompetency"] for s in all_skill_data) / len(all_skill_data)) if all_skill_data else 0
 
         return {
             "stats": {

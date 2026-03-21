@@ -15,7 +15,10 @@ import {
     updateUniversityAccount, 
     getUniversityNotificationSettings, 
     updateUniversityNotificationSettings,
-    getUniversityStats
+    getUniversityStats,
+    getCurriculumOverview,
+    getPlacementsByProgramme,
+    getStudentStats
 } from "@/lib/api/university-api";
 
 type Tab = "account" | "team" | "notifications" | "data";
@@ -405,11 +408,65 @@ function NotificationsTab() {
 
 function DataPrivacyTab() {
     const { data: stats } = useApi<UniversityDashboardStats>(getUniversityStats);
+    const { data: curriculumData } = useApi<any>(getCurriculumOverview);
+    const { data: placementsData } = useApi<any>(getPlacementsByProgramme);
+    const { data: studentStats } = useApi<any>(getStudentStats);
+    
     const [anonymize, setAnonymize] = useState(true);
     const [optOut, setOptOut] = useState(true);
     const [saved, setSaved] = useState(false);
     
     const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2500); };
+
+    const downloadCsv = (filename: string, rows: (string | number | undefined | null)[][]) => {
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleExport = (type: string) => {
+        switch(type) {
+            case "Placement Report": {
+                const rows: (string | number)[][] = [["Programme", "Eligible", "Seeking", "Secured", "Success Rate (%)"]];
+                (placementsData ?? []).forEach((p: any) => rows.push([p.name, p.eligible, p.seeking, p.secured, p.rate]));
+                downloadCsv("Placement_Report", rows);
+                break;
+            }
+            case "Curriculum Gap Data": {
+                const rows: (string | number)[][] = [["Skill Name", "Category", "Student Competency (%)", "Market Demand (%)", "Gap (%)"]];
+                (curriculumData?.skills ?? []).forEach((s: any) => rows.push([s.name, s.category, s.studentCompetency, s.marketDemand, s.gap]));
+                downloadCsv("Curriculum_Gap_Data", rows);
+                break;
+            }
+            case "Student Analytics Summary": {
+                const rows: (string | number)[][] = [["Metric", "Value"]];
+                rows.push(["Total Students", studentStats?.totalStudents || 0]);
+                rows.push(["Avg Skill Score", studentStats?.avgScore || 0]);
+                rows.push(["Profile Completion (%)", studentStats?.avgProfile || 0]);
+                rows.push(["GitHub Connected (%)", studentStats?.avgGithub || 0]);
+                rows.push(["CV Upload Rate (%)", studentStats?.avgCv || 0]);
+                downloadCsv("Student_Analytics_Summary", rows);
+                break;
+            }
+            case "Accreditation Package": {
+                const rows: (string | number)[][] = [["SECTION: OVERALL STATS"]];
+                rows.push(["Institution", stats?.institutionName || ""]);
+                rows.push(["Total Students", stats?.totalStudents || 0]);
+                rows.push(["Placement Ready Rate (%)", stats?.averageMatchScore || 0]);
+                rows.push(["", ""]);
+                rows.push(["SECTION: CURRICULUM ALIGNMENT", ""]);
+                rows.push(["Skill Name", "Competency", "Market Demand"]);
+                (curriculumData?.skills ?? []).slice(0, 10).forEach((s: any) => rows.push([s.name, s.studentCompetency, s.marketDemand]));
+                downloadCsv("Accreditation_Package", rows);
+                break;
+            }
+        }
+    };
 
     const studentCount = stats?.totalStudents || 0;
 
@@ -426,6 +483,7 @@ function DataPrivacyTab() {
                         { label: "Accreditation Package", desc: "Combined report for institutional review (PDF)", icon: Download },
                     ].map((item) => (
                         <button key={item.label}
+                            onClick={() => handleExport(item.label)}
                             className="flex items-center gap-3 p-3.5 border border-gray-200 rounded-lg hover:bg-stone-50 transition-colors text-left group">
                             <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-50 transition-colors">
                                 <item.icon size={15} className="text-gray-500 group-hover:text-blue-600 transition-colors" />
