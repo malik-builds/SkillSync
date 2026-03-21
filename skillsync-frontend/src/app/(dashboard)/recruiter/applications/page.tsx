@@ -272,7 +272,7 @@ function AppRow({
             </td>
 
             {/* Candidate — name + degree + university + source */}
-            <td className="px-3 py-3.5 min-w-[220px]">
+            <td className="px-3 py-3.5 w-[42%] max-w-0">
                 <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full ${app.avatarColor} text-white text-xs font-bold flex items-center justify-center flex-shrink-0 ring-2 ring-white`}>
                         {app.candidateInitials}
@@ -282,7 +282,7 @@ function AppRow({
                             <p className="text-[13px] font-semibold text-gray-900 truncate">{app.candidateName}</p>
                             <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${sourceBadge} flex-shrink-0`}>{app.source}</span>
                         </div>
-                        <p className="text-[11px] text-gray-500 truncate">{app.degree} {app.major} · {app.university}</p>
+                        <p className="text-[11px] text-gray-500 truncate max-w-full">{app.degree} {app.major} · {app.university}</p>
                         <div className="flex items-center gap-1 mt-0.5 text-[10px] text-gray-400">
                             <MapPin size={9} /> {app.location}
                             {app.github && <><span className="mx-1">·</span><Github size={9} /> {app.github.commits6mo} commits</>}
@@ -292,7 +292,7 @@ function AppRow({
             </td>
 
             {/* Applied for — job + dept */}
-            <td className="px-3 py-3.5 min-w-[170px]">
+            <td className="px-3 py-3.5 w-[18%] max-w-0">
                 <p className="text-[12px] font-medium text-gray-800 truncate">{app.jobTitle}</p>
                 <span className="text-[10px] text-gray-400 font-medium">{app.department}</span>
             </td>
@@ -486,6 +486,7 @@ export default function RecruiterApplicationsPage() {
     const [msgTarget, setMsgTarget] = useState<RecruiterApplication | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [viewCandidateId, setViewCandidateId] = useState<string | null>(null);
+    const [viewCandidateMatchScore, setViewCandidateMatchScore] = useState<number | undefined>(undefined);
 
     useEffect(() => {
         setFilterJob(urlJobId || "all");
@@ -751,21 +752,21 @@ export default function RecruiterApplicationsPage() {
                     </div>
                 ) : (
                     <div className="overflow-x-auto overflow-y-visible">
-                        <table className="w-full">
+                        <table className="w-full table-fixed">
                             <thead>
                                 <tr className="border-b border-gray-200 bg-gray-50/70">
                                     <th className="pl-5 pr-3 py-3 w-8">
                                         <input type="checkbox" checked={allSelected} onChange={e => selectAll(e.target.checked)}
                                             className="accent-blue-600 w-3.5 h-3.5 cursor-pointer" />
                                     </th>
-                                    <th className="px-3 py-3 text-left">
+                                    <th className="px-3 py-3 text-left w-[42%]">
                                         <button onClick={() => toggleSort("name")} className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wider hover:text-blue-700">
                                             Name <ArrowUpDown size={10} />
                                         </button>
                                     </th>
-                                    <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Applied for</th>
+                                    <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-[18%]">Applied for</th>
                                     <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-40">Status</th>
-                                    <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Tags</th>
+                                    <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-[11%]">Tags</th>
                                     <th className="px-3 py-3 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-28">
                                         <button onClick={() => toggleSort("date")} className="flex items-center gap-1 mx-auto hover:text-blue-700">
                                             Applied on <ArrowUpDown size={10} />
@@ -792,6 +793,7 @@ export default function RecruiterApplicationsPage() {
                                             const app = apps.find(a => a.id === id);
                                             if (app && app.candidateId) {
                                                 setViewCandidateId(app.candidateId);
+                                                setViewCandidateMatchScore(app.matchScore);
                                             } else {
                                                 showToast("Candidate profile unavailable.");
                                             }
@@ -822,7 +824,11 @@ export default function RecruiterApplicationsPage() {
             {viewCandidateId && (
                 <CandidateProfileModal
                     candidateId={viewCandidateId}
-                    onClose={() => setViewCandidateId(null)}
+                    initialMatchScore={viewCandidateMatchScore}
+                    onClose={() => {
+                        setViewCandidateId(null);
+                        setViewCandidateMatchScore(undefined);
+                    }}
                 />
             )}
         </div>

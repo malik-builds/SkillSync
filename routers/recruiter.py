@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
 import math
+import re
 import uuid
 import base64
 from io import BytesIO
@@ -54,6 +55,168 @@ async def compute_match_score(student: Optional[Student], job: Optional[Recruite
         return 0
     matched = student_skills & job_reqs
     return int((len(matched) / len(job_reqs)) * 100)
+
+def _estimate_experience_band(work_history: list) -> str:
+    total_years = 0
+    for item in work_history or []:
+        if not isinstance(item, dict):
+            continue
+        dur = str(item.get("duration", ""))
+        years = re.findall(r"\d{4}", dur)
+        if len(years) >= 2:
+            total_years += max(1, int(years[1]) - int(years[0]))
+        elif len(years) == 1:
+            total_years += max(1, datetime.utcnow().year - int(years[0])) if "present" in dur.lower() or "now" in dur.lower() else 1
+
+    if total_years >= 5:
+        return "5+yr"
+    if total_years >= 2:
+        return "2-5yr"
+    if total_years > 0:
+        return "<2yr"
+    return "Fresh"
+
+def _parse_salary_range(raw_salary) -> tuple[int, int]:
+    if isinstance(raw_salary, (int, float)):
+        val = int(raw_salary)
+        return (val, val)
+    if isinstance(raw_salary, str):
+        nums = [int(n) for n in re.findall(r"\d+", raw_salary)]
+        if len(nums) >= 2:
+            return (min(nums[0], nums[1]), max(nums[0], nums[1]))
+        if len(nums) == 1:
+            return (nums[0], nums[0])
+    return (0, 0)
+
+def _extract_student_profile_snapshot(student: Student) -> dict:
+    ext = getattr(student, "extracted_data", {}) or {}
+    contact = ext.get("contact_info", {}) or {}
+    personal = ext.get("personal_info", {}) or {}
+
+    education = getattr(student, "education_history", []) or []
+    first_edu = education[0] if education and isinstance(education[0], dict) else {}
+
+    degree = str(first_edu.get("degree") or student.course or "").strip()
+    major = str(getattr(student, "target_role", None) or first_edu.get("major") or first_edu.get("specialization") or student.course or "").strip()
+    university = str(first_edu.get("institution") or student.institution or "").strip()
+
+    grad_year = None
+    year_match = re.search(r"\d{4}", str(first_edu.get("year") or first_edu.get("graduation_year") or ""))
+    if year_match:
+        grad_year = int(year_match.group())
+    elif getattr(student, "graduation_year", None):
+        grad_year = int(student.graduation_year)
+
+    availability_raw = str(personal.get("availability") or ext.get("availability") or "").strip().lower()
+    availability_status = availability_raw.title() if availability_raw else ""
+
+    available_for_raw = str(personal.get("work_mode") or personal.get("preferred_work_mode") or "").strip().lower()
+    if "remote" in available_for_raw:
+        available_for = "Remote"
+    elif "on" in available_for_raw or "site" in available_for_raw or "office" in available_for_raw:
+        available_for = "OnSite"
+    else:
+        available_for = "Any"
+
+    salary_min, salary_max = _parse_salary_range(personal.get("expected_salary"))
+
+    return {
+        "degree": degree,
+        "major": major,
+        "university": university,
+        "graduatingYear": grad_year,
+        "graduatingMonth": str(first_edu.get("month") or "").strip(),
+        "location": str(contact.get("location") or personal.get("location") or "").strip(),
+        "availabilityStatus": availability_status,
+        "availableFor": available_for,
+        "experience": _estimate_experience_band(getattr(student, "work_experience", []) or []),
+        "salaryMin": salary_min,
+        "salaryMax": salary_max,
+    }
+
+def extract_github_activity_stats(github_report: dict) -> dict:
+    """Extract repo/commit counts from multiple GitHub report shapes."""
+    if not isinstance(github_report, dict):
+        return {"repos": 0, "commits": 0}
+
+    def _to_int(value) -> int:
+        try:
+            if value is None:
+                return 0
+            if isinstance(value, bool):
+                return 1 if value else 0
+            if isinstance(value, (int, float)):
+                return int(value)
+            text = str(value).strip().replace(",", "")
+            return int(float(text)) if text else 0
+        except Exception:
+            return 0
+
+    repos = max(_to_int(github_report.get("repo_count")), _to_int(github_report.get("total_repos")))
+    commits = max(_to_int(github_report.get("total_commits")), _to_int(github_report.get("commits")))
+
+    aggregate = github_report.get("aggregate_stats", {})
+    if isinstance(aggregate, dict):
+        repos = max(repos, _to_int(aggregate.get("repo_count")), _to_int(aggregate.get("total_repos")))
+        commits = max(commits, _to_int(aggregate.get("total_commits")), _to_int(aggregate.get("commits")))
+
+    legacy_aggregate = github_report.get("portfolio_analysis", {}).get("aggregate_stats", {})
+    if isinstance(legacy_aggregate, dict):
+        repos = max(repos, _to_int(legacy_aggregate.get("repo_count")), _to_int(legacy_aggregate.get("total_repos")))
+        commits = max(commits, _to_int(legacy_aggregate.get("total_commits")), _to_int(legacy_aggregate.get("commits")))
+
+    ai_report = github_report.get("ai_portfolio_audit", {})
+    if isinstance(ai_report, dict):
+        projects = ai_report.get("all_projects_overview", [])
+        if isinstance(projects, list):
+            repos = max(repos, len(projects))
+            commit_sum = 0
+            for proj in projects:
+                if not isinstance(proj, dict):
+                    continue
+                commit_sum += max(
+                    _to_int(proj.get("commits")),
+                    _to_int(proj.get("commit_count")),
+                    _to_int(proj.get("total_commits")),
+                    _to_int(proj.get("recent_commits")),
+                )
+            commits = max(commits, commit_sum)
+
+    return {"repos": repos, "commits": commits}
+
+def extract_github_language_map(github_report: dict) -> dict:
+    """Extract language percentage map from known GitHub report shapes."""
+    if not isinstance(github_report, dict):
+        return {}
+
+    mapping = {}
+    aggregate = github_report.get("aggregate_stats", {})
+    if isinstance(aggregate, dict) and isinstance(aggregate.get("languages"), dict):
+        mapping = aggregate.get("languages", {})
+    if not mapping:
+        legacy = github_report.get("portfolio_analysis", {}).get("aggregate_stats", {})
+        if isinstance(legacy, dict) and isinstance(legacy.get("languages"), dict):
+            mapping = legacy.get("languages", {})
+
+    out = {}
+    for k, v in mapping.items():
+        try:
+            out[str(k).strip().lower()] = float(v)
+        except Exception:
+            continue
+    return out
+
+def compute_skill_score(student: Student, gh_stats: dict, experience_band: str) -> int:
+    """Compute profile skill score from evidence instead of mirroring match score."""
+    skills_points = min(len(getattr(student, "skills", []) or []) * 6, 60)
+    github_points = min(int(gh_stats.get("repos", 0)) * 2 + min(int(gh_stats.get("commits", 0)) // 120, 15), 25)
+    exp_points = {
+        "Fresh": 5,
+        "<2yr": 10,
+        "2-5yr": 15,
+        "5+yr": 20,
+    }.get(experience_band, 5)
+    return max(0, min(100, skills_points + github_points + exp_points))
 
 def map_status_to_stage(status: str) -> str:
     """Map DB application status to frontend stage."""
@@ -153,21 +316,21 @@ async def format_application(app: Application, student: Optional[Student], job: 
     match_score = await compute_match_score(student, job)
     ext = student.extracted_data or {} if student else {}
     github_report = ext.get("github_report", {}) or {}
+    profile_meta = _extract_student_profile_snapshot(student) if student else {}
     github = None
     if student and student.github_url:
-        repos = github_report.get("repo_count", 0)
-        commits = github_report.get("total_commits", 0)
-        github = {"repos": repos, "commits6mo": commits}
+        github_stats = extract_github_activity_stats(github_report)
+        github = {"repos": github_stats["repos"], "commits6mo": github_stats["commits"]}
 
     return {
         "id": str(app.id),
         "candidateName": name,
         "candidateInitials": initials(name),
         "avatarColor": avatar_color(name),
-        "university": (student.course or "Unknown University") if student else "Unknown",
-        "degree": "BSc",
-        "major": (student.target_role or "Computer Science") if student else "Technology",
-        "location": "Colombo, Sri Lanka",
+        "university": profile_meta.get("university") if student else "",
+        "degree": profile_meta.get("degree") if student else "",
+        "major": profile_meta.get("major") if student else "",
+        "location": profile_meta.get("location") if student else "",
         "jobId": str(app.job_id),
         "jobTitle": job.title if job else "Unknown Role",
         "department": "Engineering",
@@ -178,7 +341,7 @@ async def format_application(app: Application, student: Optional[Student], job: 
         "matchScore": match_score,
         "skills": student.skills[:8] if student else [],
         "github": github,
-        "availabilityStatus": "Immediate",
+        "availabilityStatus": profile_meta.get("availabilityStatus") if student else "",
         "tags": app.tags,
         "note": app.notes[-1]["text"] if app.notes else None,
         "recruiterRating": 0,
@@ -998,6 +1161,7 @@ async def search_talent(
             github_report: dict = ext.get("github_report", {}) or {}
             personal_info: dict = ext.get("personal_info", {}) or {}
             contact_info: dict = ext.get("contact_info", {}) or {}
+            gh_stats = extract_github_activity_stats(github_report)
             
             # Use actual DB array parsing for experience
             work_history = getattr(s, "work_experience", [])
@@ -1037,8 +1201,8 @@ async def search_talent(
                 "experience": exp_val,
                 "skills": [{"name": sk, "score": 80, "source": "CV"} for sk in getattr(s, "skills", [])[:10]],
                 "github": {
-                    "commits6mo": int(github_report.get("total_commits", 0) if isinstance(github_report, dict) else 0),
-                    "active": bool(github_report.get("repo_count", 0) if isinstance(github_report, dict) else False),
+                    "commits6mo": gh_stats.get("commits", 0),
+                    "active": gh_stats.get("repos", 0) > 0,
                 } if s.github_url else None,
                 "overallScore": match_score,
                 "matchScore": match_score,
@@ -1066,31 +1230,51 @@ async def get_candidate_detail(candidate_id: str, current_user: User = Depends(r
             raise HTTPException(404, "Candidate not found")
         ext = student.extracted_data or {}
         github_report = ext.get("github_report", {}) or {}
+        gh_stats = extract_github_activity_stats(github_report)
+        gh_langs = extract_github_language_map(github_report)
+        gh_lang_keys = set(gh_langs.keys())
+        profile_meta = _extract_student_profile_snapshot(student)
         gap = ext.get("gap_report", {}) or {}
         match_score = min(100, int(gap.get("score", 0)))
+        skill_score = compute_skill_score(student, gh_stats, profile_meta.get("experience", "Fresh"))
         profile = await get_recruiter_profile(current_user)
+
+        skills_payload = []
+        for sk in (student.skills or []):
+            key = str(sk).strip().lower()
+            if not key:
+                continue
+            if key in gh_lang_keys:
+                pct = gh_langs.get(key, 0.0)
+                score = max(60, min(95, int(50 + pct / 2)))
+                source = "GitHub"
+            else:
+                score = 55
+                source = "CV"
+            skills_payload.append({"name": sk, "score": score, "source": source})
+
         return {
             "id": str(student.id),
             "name": student.name,
-            "degree": "BSc",
-            "major": student.target_role or "Computer Science",
-            "university": student.course or "University",
-            "graduatingYear": 2025,
-            "graduatingMonth": "June",
-            "location": "Colombo, Sri Lanka",
-            "availableFor": "Any",
-            "experience": "Fresh",
-            "skills": [{"name": sk, "score": 80, "source": "CV"} for sk in student.skills],
+            "degree": profile_meta.get("degree", ""),
+            "major": profile_meta.get("major", ""),
+            "university": profile_meta.get("university", ""),
+            "graduatingYear": profile_meta.get("graduatingYear"),
+            "graduatingMonth": profile_meta.get("graduatingMonth", ""),
+            "location": profile_meta.get("location", ""),
+            "availableFor": profile_meta.get("availableFor", "Any"),
+            "experience": profile_meta.get("experience", "Fresh"),
+            "skills": skills_payload,
             "github": {
-                "repos": github_report.get("repo_count", 0),
-                "commits6mo": github_report.get("total_commits", 0),
-                "active": True,
+                "repos": gh_stats.get("repos", 0),
+                "commits6mo": gh_stats.get("commits", 0),
+                "active": gh_stats.get("repos", 0) > 0,
             } if student.github_url else None,
-            "overallScore": match_score,
+            "overallScore": skill_score,
             "matchScore": match_score,
-            "availabilityStatus": "Immediate",
-            "salaryMin": 80,
-            "salaryMax": 150,
+            "availabilityStatus": profile_meta.get("availabilityStatus", ""),
+            "salaryMin": profile_meta.get("salaryMin", 0),
+            "salaryMax": profile_meta.get("salaryMax", 0),
             "saved": student.email in profile.saved_candidates,
             "githubUrl": student.github_url,
             "email": student.email,

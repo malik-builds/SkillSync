@@ -8,9 +8,10 @@ import { getCandidateDetail } from "@/lib/api/recruiter-api";
 interface CandidateProfileModalProps {
     candidateId: string;
     onClose: () => void;
+    initialMatchScore?: number;
 }
 
-export function CandidateProfileModal({ candidateId, onClose }: CandidateProfileModalProps) {
+export function CandidateProfileModal({ candidateId, onClose, initialMatchScore }: CandidateProfileModalProps) {
     const [candidate, setCandidate] = useState<Candidate | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -55,6 +56,7 @@ export function CandidateProfileModal({ candidateId, onClose }: CandidateProfile
     }
 
     const { name, email, location, degree, major, university, experience, github, skills, overallScore, matchScore, availabilityStatus } = candidate;
+    const effectiveMatchScore = typeof initialMatchScore === "number" ? initialMatchScore : matchScore;
     const initials = name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
     return (
@@ -62,16 +64,16 @@ export function CandidateProfileModal({ candidateId, onClose }: CandidateProfile
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 
                 {/* Header */}
-                <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between bg-gray-50/50">
-                    <div className="flex items-center gap-4">
+                <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between bg-gray-50/50 gap-3">
+                    <div className="flex items-center gap-4 min-w-0">
                         <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-inner">
                             {initials}
                         </div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900">{name}</h2>
-                            <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                                <span className="flex items-center gap-1"><MapPin size={14} />{location || "Unknown"}</span>
-                                <span className="flex items-center gap-1"><Briefcase size={14} />{experience === "Fresh" ? "Fresh Graduate" : experience + " exp"}</span>
+                        <div className="min-w-0">
+                            <h2 className="text-2xl font-bold text-gray-900 truncate">{name}</h2>
+                            <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-gray-500">
+                                <span className="flex items-center gap-1 min-w-0"><MapPin size={14} className="shrink-0" /><span className="break-words">{location || "Unknown"}</span></span>
+                                <span className="flex items-center gap-1"><Briefcase size={14} className="shrink-0" />{experience === "Fresh" ? "Fresh Graduate" : experience + " exp"}</span>
                             </div>
                         </div>
                     </div>
@@ -85,10 +87,10 @@ export function CandidateProfileModal({ candidateId, onClose }: CandidateProfile
                     
                     {/* Top Stats */}
                     <div className="flex flex-wrap gap-4 mb-8">
-                        {matchScore > 0 && (
+                        {effectiveMatchScore > 0 && (
                             <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex-1 min-w-[140px]">
                                 <p className="text-xs font-semibold text-blue-600 mb-1 uppercase tracking-wide">Match Score</p>
-                                <p className="text-2xl font-extrabold text-blue-700">{matchScore}%</p>
+                                <p className="text-2xl font-extrabold text-blue-700">{effectiveMatchScore}%</p>
                             </div>
                         )}
                         <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 flex-1 min-w-[140px]">
@@ -103,24 +105,24 @@ export function CandidateProfileModal({ candidateId, onClose }: CandidateProfile
                         )}
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-8">
+                    <div className="grid md:grid-cols-2 gap-8 min-w-0">
                         {/* Left Column */}
                         <div className="space-y-6">
                             <section>
                                 <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2"><GraduationCap size={16} className="text-blue-600" /> Education</h3>
-                                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                                    <p className="font-semibold text-gray-800">{degree} in {major}</p>
-                                    <p className="text-sm text-gray-500 mt-1">{university}</p>
+                                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 min-w-0">
+                                    <p className="font-semibold text-gray-800 break-words">{degree} in {major}</p>
+                                    <p className="text-sm text-gray-500 mt-1 break-words">{university}</p>
                                     <p className="text-xs text-gray-400 mt-1">Class of {candidate.graduatingYear}</p>
                                 </div>
                             </section>
 
                             <section>
                                 <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2"><Target size={16} className="text-blue-600" /> Key Skills</h3>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-2 min-w-0">
                                     {skills.map(s => (
-                                        <div key={s.name} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm flex items-center gap-2 shadow-sm">
-                                            <span className="font-semibold text-gray-700">{s.name}</span>
+                                        <div key={s.name} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm flex items-center gap-2 shadow-sm min-w-0 max-w-full">
+                                            <span className="font-semibold text-gray-700 break-all">{s.name}</span>
                                             <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-bold">{Math.round((s.score / 5) * 10) / 2}/5</span>
                                         </div>
                                     ))}
@@ -133,27 +135,27 @@ export function CandidateProfileModal({ candidateId, onClose }: CandidateProfile
                         <div className="space-y-6">
                             <section>
                                 <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2"><ExternalLink size={16} className="text-blue-600" /> Additional Details</h3>
-                                <div className="space-y-3 text-sm">
-                                    <div className="flex border-b border-gray-100 pb-2">
-                                        <span className="text-gray-500 w-32 font-medium">Email</span>
-                                        <span className="font-medium text-gray-900">{email}</span>
+                                <div className="space-y-3 text-sm min-w-0">
+                                    <div className="flex border-b border-gray-100 pb-2 gap-3">
+                                        <span className="text-gray-500 w-32 font-medium shrink-0">Email</span>
+                                        <span className="font-medium text-gray-900 break-all min-w-0">{email}</span>
                                     </div>
-                                    <div className="flex border-b border-gray-100 pb-2">
-                                        <span className="text-gray-500 w-32 font-medium">Availability</span>
-                                        <span className="font-medium text-gray-900">{availabilityStatus}</span>
+                                    <div className="flex border-b border-gray-100 pb-2 gap-3">
+                                        <span className="text-gray-500 w-32 font-medium shrink-0">Availability</span>
+                                        <span className="font-medium text-gray-900 break-words min-w-0">{availabilityStatus}</span>
                                     </div>
-                                    <div className="flex border-b border-gray-100 pb-2">
-                                        <span className="text-gray-500 w-32 font-medium">Expected Salary</span>
-                                        <span className="font-medium text-gray-900">
+                                    <div className="flex border-b border-gray-100 pb-2 gap-3">
+                                        <span className="text-gray-500 w-32 font-medium shrink-0">Expected Salary</span>
+                                        <span className="font-medium text-gray-900 break-words min-w-0">
                                             {candidate.salaryMin > 0 && candidate.salaryMax > 0 
                                                 ? `${candidate.salaryMin}k - ${candidate.salaryMax}k LKR/mo`
                                                 : "Not specified"}
                                         </span>
                                     </div>
                                     {candidate.githubUrl && (
-                                        <div className="flex pb-2">
-                                            <span className="text-gray-500 w-32 font-medium">GitHub</span>
-                                            <a href={candidate.githubUrl} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:underline inline-flex items-center gap-1">
+                                        <div className="flex pb-2 gap-3">
+                                            <span className="text-gray-500 w-32 font-medium shrink-0">GitHub</span>
+                                            <a href={candidate.githubUrl} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:underline inline-flex items-center gap-1 break-all min-w-0">
                                                 View Profile <ExternalLink size={12} />
                                             </a>
                                         </div>
