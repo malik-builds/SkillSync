@@ -189,7 +189,8 @@ function AddInterventionModal({ onClose, onSaved }: { onClose: () => void; onSav
 export default function UniversityDashboard() {
     const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
     const [showAddIntervention, setShowAddIntervention] = useState(false);
-    const [lastUpdated] = useState("2 hours ago");
+    const [lastUpdated, setLastUpdated] = useState("2 hours ago");
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const { data: dashboard, refetch: refetchDashboard } = useApi<UniversityDashboardData>(() => getUniversityDashboard());
     const { data: alertsData, refetch: refetchAlerts } = useApi<DashboardAlert[]>(() => getAlerts());
@@ -203,6 +204,17 @@ export default function UniversityDashboard() {
     const INTERVENTIONS: Intervention[] = dashboard?.interventions ?? [];
 
     const visibleAlerts = ALERTS.filter(a => !dismissedAlerts.has(a.id));
+    const handleRefresh = async () => {
+        if (isRefreshing) return;
+        try {
+            setIsRefreshing(true);
+            await Promise.all([refetchDashboard(), refetchAlerts()]);
+            setLastUpdated("Just now");
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
     const dismissAlert = async (id: string) => {
         setDismissedAlerts(prev => new Set([...prev, id]));
         try {
@@ -219,28 +231,32 @@ export default function UniversityDashboard() {
     return (
         <div className="space-y-6">
             {/* ── Greeting Banner ───────────────────────────────────────── */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-lg overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-4">
-                    <div className="flex-1">
-                        <h1 className="text-2xl font-bold text-white mb-2">Good Morning, {dashboard?.stats?.personalName?.split(" ")[0] ?? "Administrator"}! 👋</h1>
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-lg overflow-hidden selection:bg-white/30 selection:text-white">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 px-5 py-4">
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-xl md:text-2xl font-bold text-white mb-2 leading-tight break-words">Good Morning, {dashboard?.stats?.personalName ?? "Administrator"}!</h1>
                         {visibleAlerts.length > 0 ? (
-                            <p className="text-sm text-blue-50">
+                            <p className="text-sm text-blue-50 break-words">
                                 You have <span className="font-semibold text-white">{visibleAlerts.length} Recommendation{visibleAlerts.length > 1 ? 's' : ''} for Improvement</span>. Let&apos;s review them and take action to enhance student outcomes!
                             </p>
                         ) : (
-                            <p className="text-sm text-blue-50">
+                            <p className="text-sm text-blue-50 break-words">
                                 All key metrics are meeting targets. Great work on maintaining student success!
                             </p>
                         )}
-                        <p className="text-xs text-blue-200 mt-2">Academic Year 2024/25 · Semester 2 · {dashboard?.stats?.institutionName ?? "University of Colombo"}</p>
+                        <p className="text-xs text-blue-200 mt-2 break-words">Academic Year 2024/25 · Semester 2 · {dashboard?.stats?.institutionName ?? "University of Colombo"}</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1.5 text-xs text-blue-100">
-                            <RefreshCw size={12} className="text-blue-200" />
-                            Updated {lastUpdated}
-                        </span>
+                    <div className="w-full lg:w-auto flex items-center gap-3 flex-wrap lg:flex-nowrap justify-between lg:justify-end">
+                        <button
+                            onClick={() => void handleRefresh()}
+                            disabled={isRefreshing}
+                            className="flex items-center gap-1.5 text-xs text-blue-100 hover:text-white transition-colors disabled:opacity-70"
+                        >
+                            <RefreshCw size={12} className={`text-blue-200 ${isRefreshing ? "animate-spin" : ""}`} />
+                            {isRefreshing ? "Refreshing..." : `Updated ${lastUpdated}`}
+                        </button>
                         {visibleAlerts.length > 0 && (
-                            <button className="flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-blue-50 text-blue-700 text-sm font-semibold rounded-lg shadow-sm transition-colors">
+                            <button className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-white hover:bg-blue-50 text-blue-700 text-sm font-semibold rounded-lg shadow-sm transition-colors">
                                 <ArrowRight size={16} /> Take Action
                             </button>
                         )}
