@@ -792,8 +792,12 @@ async def update_settings(data: dict = Body(...), current_user: User = Depends(r
 @router.post("/settings/deactivate")
 async def deactivate_account(current_user: User = Depends(require_university)):
     try:
-        current_user.is_active = False
-        await current_user.save()
+        profile = await UniversityProfile.find_one(UniversityProfile.uni_email == current_user.email)
+        if profile:
+            await profile.delete()
+
+        # Permanently remove the university user account.
+        await current_user.delete()
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, "Internal error")

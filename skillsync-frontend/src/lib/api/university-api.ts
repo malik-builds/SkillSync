@@ -263,6 +263,6 @@ export function changeUniversityPassword(data: { currentPassword: string; newPas
   return api.post<{ success: boolean }>('/university/settings/change-password', data)
 }
 
-export function deactivateAccount() {
+export function deleteUniversityAccount() {
   return api.post<{ success: boolean }>('/university/settings/deactivate', {});
 }
