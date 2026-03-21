@@ -597,6 +597,51 @@ async def add_partner(data: dict = Body(...), current_user: User = Depends(requi
     except Exception as e:
         raise HTTPException(500, "Internal error")
 
+@router.put("/partners/{partner_id}")
+async def update_partner(partner_id: str, data: dict = Body(...), current_user: User = Depends(require_university)):
+    try:
+        profile = await get_university_profile(current_user)
+        partner_companies = profile.partner_companies or []
+
+        def _matches_partner_id(partner: dict) -> bool:
+            stored_id = str(partner.get("id") or "").strip()
+            if stored_id and stored_id == partner_id:
+                return True
+            # Legacy records may not have an explicit id stored; match against normalized fallback id.
+            normalized_id = str(normalize_partner_company(partner).get("id") or "").strip()
+            return normalized_id == partner_id
+
+        match_index = next((i for i, p in enumerate(partner_companies) if _matches_partner_id(p)), -1)
+        if match_index < 0:
+            raise HTTPException(404, "Partner company not found")
+
+        existing = partner_companies[match_index]
+        current_name = str(existing.get("name") or "").strip()
+        updated_name = str(data.get("name", current_name)).strip() or current_name
+
+        updated_partner = {
+            **existing,
+            "id": str(existing.get("id") or partner_id),
+            "name": updated_name,
+            "industry": str(data.get("industry", existing.get("industry", "Unknown"))).strip() or "Unknown",
+            "website": str(data.get("website", existing.get("website", ""))).strip(),
+            "size": str(data.get("size", existing.get("size", "Unknown"))).strip() or "Unknown",
+            "status": data.get("status", existing.get("status", "New")),
+            "email": str(data.get("email", existing.get("email", ""))).strip(),
+            "topRoles": data.get("topRoles", existing.get("topRoles", [])) or [],
+            "since": _safe_int(data.get("since", existing.get("since", datetime.now().year))),
+            "logoColor": data.get("logoColor", existing.get("logoColor", _partner_logo_color(updated_name))),
+        }
+
+        partner_companies[match_index] = updated_partner
+        profile.partner_companies = partner_companies
+        await profile.save()
+        return {"success": True, "partner": normalize_partner_company(updated_partner)}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, "Internal error")
+
 @router.get("/curriculum/skills")
 async def get_curriculum_skills(
     programme: Optional[str] = None,

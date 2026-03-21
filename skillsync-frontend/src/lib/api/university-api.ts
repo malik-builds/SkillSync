@@ -184,7 +184,11 @@ export function getPartnerStats() {
 }
 
 export function addPartner(data: Omit<PartnerCompany, 'id'>) {
-  return api.post<PartnerCompany>('/university/partners', data)
+  return api.post<{ success: boolean; partner: PartnerCompany }>('/university/partners', data)
+}
+
+export function updatePartner(partnerId: string, data: Partial<Omit<PartnerCompany, 'id'>>) {
+  return api.put<{ success: boolean; partner: PartnerCompany }>(`/university/partners/${partnerId}`, data)
 }
 
 export function contactPartner(partnerId: string, message: string) {

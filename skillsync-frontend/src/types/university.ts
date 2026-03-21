@@ -144,6 +144,7 @@ export interface PartnerCompany {
   id: string;
   name: string;
   industry: string;
+  website?: string;
   size: string;
   status: PartnerStatus;
   studentsHired: number;

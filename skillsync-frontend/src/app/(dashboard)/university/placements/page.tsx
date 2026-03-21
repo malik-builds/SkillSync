@@ -125,17 +125,17 @@ export default function PlacementsTrackingPage() {
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={handleExportCsv}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
                     >
-                        <Download size={13} className="text-gray-500" /> Export CSV
+                        <Download size={14} className="text-gray-500" /> Export CSV
                     </button>
                     <button 
                         onClick={handleShare}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-md text-xs font-semibold shadow-sm transition-all ${
+                        className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-semibold shadow-sm transition-all ${
                             shared ? "bg-green-50 border-green-200 text-green-700" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                         }`}
                     >
-                        {shared ? <Check size={13} /> : <Share2 size={13} className="text-gray-500" />}
+                        {shared ? <Check size={14} /> : <Share2 size={14} className="text-gray-500" />}
                         {shared ? "Copied!" : "Share"}
                     </button>
                 </div>
