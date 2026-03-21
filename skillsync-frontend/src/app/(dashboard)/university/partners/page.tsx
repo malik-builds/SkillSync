@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import {
     Search, Handshake, Users, Briefcase, Building2, Mail,
-    Star, TrendingUp, Plus, ExternalLink, BadgeCheck, X, Pencil
+    Star, Plus, BadgeCheck, X, Pencil
 } from "lucide-react";
 import { PartnerCompany, PartnerStatus, PartnerStats } from "@/types/university";
 import { useApi } from "@/lib/hooks/useApi";
@@ -359,29 +359,6 @@ export default function PartnerCompaniesPage() {
                     <p className="text-sm mt-1">Try adjusting your search or filters above.</p>
                 </div>
             )}
-
-            {/* ── Insight Footer ────────────────────────────────────────── */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row gap-4 items-start">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 flex-shrink-0 flex items-center justify-center">
-                    <TrendingUp size={18} className="text-blue-600" />
-                </div>
-                <div className="flex-1">
-                    <h4 className="text-sm font-bold text-slate-800 mb-1">Partnership Development Insight</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                        {COMPANIES.length > 0 ? (
-                            <>
-                                <b>{COMPANIES.sort((a,b) => b.studentsHired - a.studentsHired).slice(0, 3).map(c => c.name).join(", ")}</b> have been your most active hiring partners this year. 
-                                Consider further engagement with these institutions for curriculum advisory or guest lectures.
-                            </>
-                        ) : (
-                            "No company data available. Partner with industry leaders to start tracking hiring trends and student placements."
-                        )}
-                    </p>
-                </div>
-                <button className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 whitespace-nowrap transition-colors">
-                    Partnership Report <ExternalLink size={12} />
-                </button>
-            </div>
 
             {showAddCompany && (
                 <CompanyModal
