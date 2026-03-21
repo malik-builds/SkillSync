@@ -75,6 +75,7 @@ def map_stage_to_status(stage: str) -> str:
         "Screening": "reviewing",
         "Shortlisted": "shortlisted",
         "Interview": "interview",
+        "Offer": "offer",
         "Hired": "hired",
         "Rejected": "rejected",
     }

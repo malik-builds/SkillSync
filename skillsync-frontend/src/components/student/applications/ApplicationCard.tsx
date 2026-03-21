@@ -3,7 +3,7 @@
 import { Application } from "@/types/applications";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PipelineStepper } from "./PipelineStepper";
-import { MoreHorizontal, MessageSquare, Video, FileText, AlertCircle, Eye } from "lucide-react";
+import { MoreHorizontal, MessageSquare, Video, FileText, AlertCircle, Eye, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { InterviewPrepModal } from "./InterviewPrepModal";
 
@@ -14,9 +14,12 @@ interface ApplicationCardProps {
 export function ApplicationCard({ app }: ApplicationCardProps) {
     const [isPrepOpen, setIsPrepOpen] = useState(false);
 
-    const isInterview = app.status === 'Interview';
-    const isRejected = app.status === 'Rejected';
-    const isApplied = app.status === 'Applied';
+    const normalizedStatus = app.status.toLowerCase();
+    const isInterview = normalizedStatus === 'interview';
+    const isRejected = normalizedStatus === 'rejected';
+    const isApplied = normalizedStatus === 'applied';
+    const isHired = normalizedStatus === 'hired';
+    const isOffer = normalizedStatus === 'offer';
 
     return (
         <>
@@ -46,7 +49,7 @@ export function ApplicationCard({ app }: ApplicationCardProps) {
 
                 {/* Stepper */}
                 <div className="mb-8 pl-2 pr-4">
-                    {!isRejected && <PipelineStepper steps={app.steps} />}
+                    {!isRejected && !isHired && <PipelineStepper steps={app.steps} />}
                     {isRejected && (
                         <div className="p-3 rounded-lg bg-red-50 border border-red-100 flex items-start gap-3">
                             <AlertCircle size={18} className="text-red-500 mt-0.5 shrink-0" />
@@ -56,6 +59,17 @@ export function ApplicationCard({ app }: ApplicationCardProps) {
                                     {app.feedback?.gap ?
                                         `Feedback: The role requires stronger ${app.feedback.gap} skills.` :
                                         "Thank you for your interest. We decided to move forward with other candidates."}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                    {isHired && (
+                        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100 flex items-start gap-3">
+                            <CheckCircle2 size={18} className="text-emerald-600 mt-0.5 shrink-0" />
+                            <div>
+                                <h4 className="text-sm font-bold text-emerald-700 mb-1">Application Status: Hired</h4>
+                                <p className="text-sm text-gray-700">
+                                    Congratulations. You have been marked as hired for this role.
                                 </p>
                             </div>
                         </div>
@@ -120,13 +134,29 @@ export function ApplicationCard({ app }: ApplicationCardProps) {
                             <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">Find Similar Jobs</button>
                         </div>
                     )}
+
+                    {isOffer && (
+                        <div className="flex items-center gap-3">
+                            <Eye size={16} className="text-green-600" />
+                            <span className="text-sm text-gray-600">
+                                <span className="font-bold text-gray-900">Offer:</span> Recruiter moved your application to offer stage.
+                            </span>
+                        </div>
+                    )}
+
+                    {isHired && (
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Great news: this role is confirmed as hired. Keep this for your records.</span>
+                            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">View Job Details</button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer Actions */}
                 <div className="flex items-center gap-4 mt-6 pt-4 border-t border-gray-100">
                     <button
-                        disabled={isApplied || isRejected}
-                        className={`flex items-center gap-2 text-sm font-medium transition-colors ${isApplied || isRejected ? "text-gray-400 cursor-not-allowed" : "text-gray-500 hover:text-gray-900"
+                        disabled={isApplied || isRejected || isHired}
+                        className={`flex items-center gap-2 text-sm font-medium transition-colors ${isApplied || isRejected || isHired ? "text-gray-400 cursor-not-allowed" : "text-gray-500 hover:text-gray-900"
                             }`}
                     >
                         <MessageSquare size={16} /> Message Recruiter

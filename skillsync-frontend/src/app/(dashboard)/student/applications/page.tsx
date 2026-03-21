@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useApi } from "@/lib/hooks/useApi";
 import { getApplications } from "@/lib/api/student-api";
 
-const TABS = ["All Applications", "Active", "Interview", "Archived"];
+const TABS = ["All Applications", "Active", "Interview", "Offer", "Hired", "Archived"];
 
 export default function ApplicationsPage() {
     const [activeTab, setActiveTab] = useState("All Applications");
@@ -25,7 +25,9 @@ export default function ApplicationsPage() {
         if (activeTab === "All Applications") return true;
         if (activeTab === "Active") return ["Applied", "Screening", "Shortlisted", "Interview"].includes(app.status);
         if (activeTab === "Interview") return app.status === "Interview";
-        if (activeTab === "Archived") return ["Rejected", "Offer", "Hired"].includes(app.status);
+        if (activeTab === "Offer") return app.status === "Offer";
+        if (activeTab === "Hired") return app.status === "Hired";
+        if (activeTab === "Archived") return ["Rejected"].includes(app.status);
         return true;
     });
 

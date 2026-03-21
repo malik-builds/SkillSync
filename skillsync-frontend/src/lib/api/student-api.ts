@@ -122,14 +122,14 @@ type BackendStudentApplication = {
 }
 
 function mapStageToStatus(stage?: string): Application['status'] {
-  const value = (stage || '').toLowerCase()
-  if (value === 'applied') return 'Applied'
-  if (value === 'reviewing' || value === 'screening') return 'Screening'
-  if (value === 'shortlisted') return 'Shortlisted'
-  if (value === 'interview') return 'Interview'
-  if (value === 'offer') return 'Offer'
-  if (value === 'hired') return 'Hired'
-  if (value === 'rejected') return 'Rejected'
+  const value = (stage || '').toLowerCase().trim()
+  if (value.includes('hired')) return 'Hired'
+  if (value.includes('offer')) return 'Offer'
+  if (value.includes('interview')) return 'Interview'
+  if (value.includes('shortlisted')) return 'Shortlisted'
+  if (value.includes('review') || value.includes('screen')) return 'Screening'
+  if (value.includes('reject')) return 'Rejected'
+  if (value.includes('applied') || value.includes('new')) return 'Applied'
   return 'Applied'
 }
 
@@ -140,6 +140,7 @@ function buildPipelineSteps(status: Application['status'], appliedDate?: string)
     { label: 'Shortlisted', status: 'pending' as const },
     { label: 'Interview', status: 'pending' as const },
     { label: 'Offer', status: 'pending' as const },
+    { label: 'Hired', status: 'pending' as const },
   ]
 
   const currentIndex = status === 'Applied'
@@ -150,8 +151,10 @@ function buildPipelineSteps(status: Application['status'], appliedDate?: string)
         ? 2
         : status === 'Interview'
           ? 3
-          : status === 'Offer' || status === 'Hired'
+          : status === 'Offer'
             ? 4
+            : status === 'Hired'
+              ? 5
             : -1
 
   if (currentIndex >= 0) {
@@ -198,9 +201,9 @@ export function getApplications(status?: string) {
         applications,
         stats: {
           total: rawStats?.total || applications.length,
-          active: rawStats?.active || applications.filter((a) => ["Applied", "Screening", "Interview"].includes(a.status)).length,
+          active: rawStats?.active || applications.filter((a) => ["Applied", "Screening", "Shortlisted", "Interview"].includes(a.status)).length,
           interviews: rawStats?.interviews || applications.filter((a) => a.status === "Interview").length,
-          offers: rawStats?.offers || applications.filter((a) => a.status === "Offer").length,
+          offers: rawStats?.offers || applications.filter((a) => ["Offer", "Hired"].includes(a.status)).length,
           rejected: rawStats?.rejected || applications.filter((a) => a.status === "Rejected").length,
         },
       } as ApplicationsResponse
