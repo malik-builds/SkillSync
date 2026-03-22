@@ -15,7 +15,7 @@ python-jose[cryptography]
 passlib[bcrypt]
 bcrypt==4.0.1
 python-multipart
-python-magic; sys_platform == 'darwin'
+# python-magic; sys_platform == 'darwin'
 python-magic-bin; sys_platform == 'win32'
 slowapi
 httpx
