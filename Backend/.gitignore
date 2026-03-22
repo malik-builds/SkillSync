@@ -1,0 +1,39 @@
+# Ignore editor/IDE-specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+__pycache__/
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore build artifacts and temporary files
+/build/
+/dist/
+/target/
+*.log
+*.tmp
+*.cache
+*.class
+temp_*
+debug_*
+check_users.py
+test_post_job.py
+
+# Ignore dependencies directory
+/node_modules/
+/vendor/
+/venv/
+
+# Ignore sensitive files
+.env
+config.local.json
+
+# Ignore temporary test directories
+test/
+
+# User docs
+malik_docs/
+test/

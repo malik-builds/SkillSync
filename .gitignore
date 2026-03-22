@@ -1,39 +1,50 @@
-# Ignore editor/IDE-specific files
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# Python
 __pycache__/
-
-# Ignore OS-specific files
-.DS_Store
-Thumbs.db
-
-# Ignore build artifacts and temporary files
-/build/
-/dist/
-/target/
-*.log
-*.tmp
-*.cache
-*.class
-temp_*
-debug_*
-check_users.py
-test_post_job.py
-
-# Ignore dependencies directory
-/node_modules/
-/vendor/
+*.py[cod]
+*$py.class
 /venv/
-
-# Ignore sensitive files
 .env
 config.local.json
 
-# Ignore temporary test directories
-test/
+# Node/Frontend
+node_modules/
+.pnp
+.pnp.js
+/coverage
+/.next/
+/out/
+/build/
+/dist/
+/target/
+.vercel
+*.tsbuildinfo
+next-env.d.ts
 
-# User docs
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.cache
+temp_*
+debug_*
+
+# Misc
+*.pem
 malik_docs/
+check_users.py
+test_post_job.py
 test/
