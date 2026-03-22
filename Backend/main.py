@@ -47,15 +47,31 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # 1. CORS Configuration (Outer Middleware)
+default_allowed_origins = [
+    "https://skill-sync-eight-ochre.vercel.app",
+    "https://skillsync.lk",
+    "https://www.skillsync.lk",
+    "https://skillsync.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+]
+
+# Optional override for deployed environments:
+# CORS_ALLOWED_ORIGINS="https://a.com,https://b.com"
+env_allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
+# Merge defaults with environment values so required domains are never dropped.
+allowed_origins = list(dict.fromkeys(default_allowed_origins + env_allowed_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "https://skillsync.vercel.app",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
