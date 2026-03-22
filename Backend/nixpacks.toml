@@ -3,12 +3,9 @@ aptPkgs = ["libmagic1", "libmagic-dev"]
 
 [phases.install]
 cmds = [
-  "/opt/venv/bin/pip install fastapi uvicorn[standard] beanie motor python-dotenv",
-  "/opt/venv/bin/pip install pdfplumber python-docx google-genai",
-  "/opt/venv/bin/pip install tree-sitter tree-sitter-python",
-  "/opt/venv/bin/pip install openai langgraph PyGithub",
-  "/opt/venv/bin/pip install python-jose[cryptography] passlib[bcrypt] bcrypt==4.0.1",
-  "/opt/venv/bin/pip install python-multipart python-magic slowapi httpx beautifulsoup4 lxml email-validator"
+  "python3 -m venv /opt/venv",
+  "/opt/venv/bin/pip install --upgrade pip",
+  "/opt/venv/bin/pip install -r requirements.txt"
 ]
 
 [start]
