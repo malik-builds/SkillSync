@@ -1,7 +1,7 @@
 fastapi
 uvicorn[standard]
-beanie
-motor
+beanie==1.26.0
+motor==3.3.2
 python-dotenv
 pdfplumber
 python-docx
@@ -21,3 +21,4 @@ httpx
 beautifulsoup4
 lxml
 email-validator
+Pillow
