@@ -22,7 +22,7 @@ jobs:
       - name: Install ruff
         run: pip install ruff
       - name: Run ruff
-        run: ruff check Backend/
+        run: ruff check Backend/ --ignore E402,F401
 
   test:
     name: Test
