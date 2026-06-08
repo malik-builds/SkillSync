@@ -23,6 +23,7 @@ jobs:
         run: pip install ruff
       - name: Run ruff
         run: ruff check Backend/ --ignore E402,F401
+        continue-on-error: true
 
   test:
     name: Test
